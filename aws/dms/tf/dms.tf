@@ -101,7 +101,6 @@ resource "aws_s3_bucket_notification" "dms_target" {
   topic {
     topic_arn     = aws_sns_topic.dms_target.arn
     events        = ["s3:ObjectCreated:*"]
-    filter_prefix = "dms/"
   }
 
   depends_on = [aws_sns_topic_policy.dms_target]
@@ -191,7 +190,6 @@ resource "aws_dms_endpoint" "source" {
   ssl_mode      = "require"
 }
 
-# Target endpoint: S3 (Parquet for Snowflake ingestion)
 resource "aws_dms_s3_endpoint" "target" {
   endpoint_id   = "${var.resource_prefix}-target"
   endpoint_type = "target"
@@ -202,7 +200,18 @@ resource "aws_dms_s3_endpoint" "target" {
   data_format             = "parquet"
   compression_type        = "GZIP"
   timestamp_column_name   = "dms_timestamp"
+}
 
+resource "aws_dms_s3_endpoint" "target_full_load" {
+  endpoint_id   = "${var.resource_prefix}-target-full-load"
+  endpoint_type = "target"
+
+  bucket_name             = aws_s3_bucket.dms_target.id
+  bucket_folder           = "dms-full-load"
+  service_access_role_arn = aws_iam_role.dms_s3_role.arn
+  data_format             = "parquet"
+  compression_type        = "GZIP"
+  timestamp_column_name   = "dms_timestamp"
 }
 
 output "dms_replication_instance_arn" {
@@ -215,6 +224,10 @@ output "dms_source_endpoint_arn" {
 
 output "dms_target_endpoint_arn" {
   value = aws_dms_s3_endpoint.target.endpoint_arn
+}
+
+output "dms_target_full_load_endpoint_arn" {
+  value = aws_dms_s3_endpoint.target_full_load.endpoint_arn
 }
 
 output "dms_s3_bucket" {

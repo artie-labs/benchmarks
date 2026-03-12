@@ -33,7 +33,7 @@
      STORAGE_PROVIDER = 'S3'
      STORAGE_AWS_ROLE_ARN = '<snowflake_s3_role_arn output>'
      ENABLED = TRUE
-     STORAGE_ALLOWED_LOCATIONS = ('s3://<dms_s3_bucket output>/dms/');
+     STORAGE_ALLOWED_LOCATIONS = ('s3://<dms_s3_bucket output>/dms/', 's3://<dms_s3_bucket output>/dms-full-load/');
 
    DESC INTEGRATION benchmark_dms_s3;
    ```
@@ -46,54 +46,6 @@
    ```
 
    Copy the value of the `dms_target_sns_topic_arn` output.
-
-7. Create the target table.
-
-   ```
-   CREATE OR REPLACE TABLE <target table> (
-    AID INT NOT NULL,
-    BID INT,
-    ABALANCE INT,
-    FILLER VARCHAR,
-    OP VARCHAR,
-    DMS_TIMESTAMP VARCHAR,
-    __FILENAME VARCHAR,
-    __ROW_NUMBER INT,
-    __SCAN_TIME TIMESTAMP_NTZ,
-    __LOADED_AT TIMESTAMP_NTZ DEFAULT SYSDATE(),
-    primary key (AID)
-   ) ROW_TIMESTAMP = TRUE;
-   ```
-
-8. Create the stage and the pipe in Snowflake.
-
-   ```
-   CREATE STAGE benchmark_dms_stage
-     URL = 's3://<dms_s3_bucket output>/dms/'
-     STORAGE_INTEGRATION = benchmark_dms_s3
-     FILE_FORMAT = (TYPE = 'PARQUET');
-
-   CREATE OR REPLACE PIPE benchmark_dms_pipe
-     AUTO_INGEST = TRUE
-     AWS_SNS_TOPIC = '<dms_target_sns_topic_arn output>'
-     AS
-       COPY INTO <target_table>
-         FROM (
-            SELECT
-            $1:aid::INT,
-            $1:bid::INT,
-            $1:abalance::INT,
-            $1:filler::VARCHAR,
-            $1:Op::VARCHAR,
-            $1:dms_timestamp::VARCHAR,
-            METADATA$FILENAME,
-            METADATA$FILE_ROW_NUMBER,
-            METADATA$START_SCAN_TIME::TIMESTAMP_NTZ,
-            SYSDATE()
-            FROM @benchmark_dms_stage
-        )
-        FILE_FORMAT = (TYPE = 'PARQUET');
-   ```
 
 </details>
 
@@ -136,14 +88,65 @@
 
 ## DMS Full Load
 
-### 1. Create the replication task
+Get the ARN of the SNS topic with:
+```bash
+terraform -chdir=aws/dms/tf output --raw dms_target_sns_topic_arn
+```
+
+### 1. Snowflake Setup
+
+Create the target table in Snowflake.
+
+```sql
+CREATE OR REPLACE TABLE <target table> (
+  AID INT NOT NULL,
+  BID INT,
+  ABALANCE INT,
+  FILLER VARCHAR,
+  __FILENAME VARCHAR,
+  __ROW_NUMBER INT,
+  __SCAN_TIME TIMESTAMP_NTZ,
+  __LOADED_AT TIMESTAMP_NTZ DEFAULT SYSDATE(),
+  primary key (AID)
+) ROW_TIMESTAMP = TRUE;
+```
+
+Create the stage and the pipe in Snowflake.
+
+```sql
+CREATE OR REPLACE STAGE benchmark_dms_stage_full_load
+  URL = 's3://<dms_s3_bucket output>/dms-full-load/'
+  STORAGE_INTEGRATION = benchmark_dms_s3
+  FILE_FORMAT = (TYPE = 'PARQUET');
+
+CREATE OR REPLACE PIPE benchmark_dms_pipe_full_load
+  AUTO_INGEST = TRUE
+  AWS_SNS_TOPIC = '<dms_target_sns_topic_arn output>'
+  AS
+    COPY INTO <target_table>
+      FROM (
+        SELECT
+        $1:aid::INT,
+        $1:bid::INT,
+        $1:abalance::INT,
+        $1:filler::VARCHAR,
+        METADATA$FILENAME,
+        METADATA$FILE_ROW_NUMBER,
+        METADATA$START_SCAN_TIME::TIMESTAMP_NTZ,
+        SYSDATE()
+        FROM @benchmark_dms_stage_full_load
+    )
+    FILE_FORMAT = (TYPE = 'PARQUET');
+```
+
+### 2. Create the replication task
 
 ```bash
 aws dms create-replication-task \
   --replication-task-identifier benchmark-dms-full-load-task \
   --replication-instance-arn "$(terraform -chdir=aws/dms/tf output -raw dms_replication_instance_arn)" \
   --source-endpoint-arn "$(terraform -chdir=aws/dms/tf output -raw dms_source_endpoint_arn)" \
-  --target-endpoint-arn "$(terraform -chdir=aws/dms/tf output -raw dms_target_endpoint_arn)" \
+  --target-endpoint-arn "$(terraform -chdir=aws/dms/tf output -raw dms_target_full_load_endpoint_arn)" \
   --migration-type full-load \
   --table-mappings file://aws/dms/backfill/dms-table-mappings.json \
   --replication-task-settings file://aws/dms/backfill/dms-task-settings.json
@@ -151,7 +154,7 @@ aws dms create-replication-task \
 
 Copy the value of `ReplicationTaskArn` from the output.
 
-### 2. Start the task
+### 3. Start the task
 
 ```bash
 aws dms start-replication-task \
@@ -159,7 +162,7 @@ aws dms start-replication-task \
   --start-replication-task-type start-replication
 ```
 
-### 3. Monitor progress
+### 4. Monitor progress
 
 ```bash
 watch -n 5 'aws dms describe-replication-tasks \
@@ -168,19 +171,19 @@ watch -n 5 'aws dms describe-replication-tasks \
   --output table'
 ```
 
-### 4. Results
+### 5. Results
 
 When the `Status` of the task becomes `stopped`, take the difference between `StartedAt` and `StoppedAt`. This is how long it takes to write the 100m rows to S3.
 
 In Snowflake, run the following query:
 
 ```sql
-SELECT COUNT(*), CURRENT_TIMESTAMP() FROM <target table>;
+SELECT COUNT(*), MAX(METADATA$ROW_LAST_COMMIT_TIME) FROM <target table>;
 ```
 
-When the count reaches 100 million, take the difference between the current time and `StartedAt` from the DMS task.
+When the count reaches 100 million, take the difference between the last commit time and `StartedAt` from the DMS task.
 
-### 5. Cleanup
+### 6. Cleanup
 
 Delete the task when done:
 
@@ -196,7 +199,111 @@ aws dms delete-replication-task --replication-task-arn <task-arn>
 
 ## DMS Continous Replication
 
-### 1. Create the replication task
+Get the ARN of the SNS topic with:
+```bash
+terraform -chdir=aws/dms/tf output --raw dms_target_sns_topic_arn
+```
+
+### 1. Snowflake Setup
+
+Create the history table in Snowflake.
+
+```sql
+CREATE OR REPLACE TABLE <history table> (
+  AID INT NOT NULL,
+  BID INT,
+  ABALANCE INT,
+  FILLER VARCHAR,
+  OP VARCHAR,
+  DMS_TIMESTAMP VARCHAR,
+  __FILENAME VARCHAR,
+  __ROW_NUMBER INT,
+  __SCAN_TIME TIMESTAMP_NTZ,
+  __LOADED_AT TIMESTAMP_NTZ DEFAULT SYSDATE(),
+primary key (AID)
+) ROW_TIMESTAMP = TRUE;
+```
+
+Create the stage and the pipe in Snowflake.
+
+```sql
+CREATE OR REPLACE STAGE benchmark_dms_stage
+  URL = 's3://<dms_s3_bucket output>/dms/'
+  STORAGE_INTEGRATION = benchmark_dms_s3
+  FILE_FORMAT = (TYPE = 'PARQUET');
+
+CREATE OR REPLACE PIPE benchmark_dms_pipe
+  AUTO_INGEST = TRUE
+  AWS_SNS_TOPIC = '<dms_target_sns_topic_arn output>'
+  AS
+    COPY INTO <target_table>
+      FROM (
+        SELECT
+        $1:aid::INT,
+        $1:bid::INT,
+        $1:abalance::INT,
+        $1:filler::VARCHAR,
+        $1:Op::VARCHAR,
+        $1:dms_timestamp::VARCHAR,
+        METADATA$FILENAME,
+        METADATA$FILE_ROW_NUMBER,
+        METADATA$START_SCAN_TIME::TIMESTAMP_NTZ,
+        SYSDATE()
+        FROM @benchmark_dms_stage
+    )
+    FILE_FORMAT = (TYPE = 'PARQUET');
+```
+
+
+Create a stream from the history table.
+
+```sql
+CREATE STREAM benchmark_dms_history_stream ON TABLE <history table>;
+```
+
+Create a task to merge changes from the stream to the target table:
+
+```sql
+CREATE TASK benchmark_dms_merge_task
+  WAREHOUSE = <warehouse>
+  SCHEDULE = '1 minute'
+WHEN
+  SYSTEM$STREAM_HAS_DATA('benchmark_dms_history_stream')
+AS
+  MERGE INTO <target table> AS t
+  USING (
+    SELECT * FROM benchmark_dms_history_stream
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY AID ORDER BY FILLER DESC) = 1
+  ) AS s
+    ON t.AID = s.AID
+  WHEN MATCHED AND s.OP = 'D' THEN DELETE
+  WHEN MATCHED THEN
+    UPDATE SET
+      t.BID = s.BID,
+      t.ABALANCE = s.ABALANCE,
+      t.FILLER = s.FILLER,
+      t.__FILENAME = s.__FILENAME,
+      t.__ROW_NUMBER = s.__ROW_NUMBER,
+      t.__SCAN_TIME = s.__SCAN_TIME,
+      t.__LOADED_AT = s.__LOADED_AT
+  WHEN NOT MATCHED THEN
+    INSERT (AID, BID, ABALANCE, FILLER, __FILENAME, __ROW_NUMBER, __SCAN_TIME, __LOADED_AT)
+    VALUES (s.AID, s.BID, s.ABALANCE, s.FILLER, s.__FILENAME, s.__ROW_NUMBER, s.__SCAN_TIME, s.__LOADED_AT);
+
+ALTER TASK benchmark_dms_merge_task RESUME;
+
+```
+
+Monitor task with:
+
+```sql
+SELECT *
+  FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.TASK_HISTORY())
+  WHERE NAME = 'BENCHMARK_DMS_MERGE_TASK'
+  ORDER BY SCHEDULED_TIME DESC;
+```
+
+### 2. Create the replication task
 
 ```bash
 aws dms create-replication-task \
@@ -211,7 +318,7 @@ aws dms create-replication-task \
 
 Copy the value of `ReplicationTaskArn` from the output.
 
-### 2. Start the task
+### 3. Start the task
 
 ```bash
 aws dms start-replication-task \
@@ -219,7 +326,7 @@ aws dms start-replication-task \
   --start-replication-task-type start-replication
 ```
 
-### 3. Monitor progress
+### 4. Monitor progress
 
 ```bash
 watch -n 5 'aws dms describe-replication-tasks \
@@ -228,7 +335,7 @@ watch -n 5 'aws dms describe-replication-tasks \
   --output table'
 ```
 
-### 4. Generate Load
+### 5. Generate Load
 
 In the EC2 instance, generate load with:
 
@@ -237,7 +344,7 @@ source credentials
 ./pgbench-load.sh
 ```
 
-### 5. Results
+### 6. Results
 
 In Snowflake, run the following query:
 
@@ -248,7 +355,7 @@ SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
   FILLER::TIMESTAMP_TZ           AS pg_commit_time,
   METADATA$ROW_LAST_COMMIT_TIME  AS snowflake_loaded_at,
   DATEDIFF('second', pg_commit_time, snowflake_loaded_at) AS latency_seconds
-FROM WILLIAM_TEST.BENCHMARK_DMS.PGBENCH_ACCOUNTS
+FROM <history table>
 QUALIFY ROW_NUMBER() OVER (PARTITION BY AID ORDER BY METADATA$ROW_LAST_COMMIT_TIME DESC) = 1);
 ```
 
