@@ -1,0 +1,45 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: artie
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: artie-kafka
+spec:
+  authentication:
+    type: scram-sha-512
+    password:
+      valueFrom:
+        secretKeyRef:
+          key: KAFKA_SCRAM_PASSWORD
+          name: kafka-secret
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: "*"
+          patternType: literal
+        operations:
+          - Describe
+          - DescribeConfigs
+          - Read
+          - Write
+          - Delete
+          - Alter
+          - AlterConfigs
+        host: "*"
+      # Cluster should not have `name` or `patternType`. Ref: https://github.com/orgs/strimzi/discussions/5654#discussioncomment-1424689
+      - resource:
+          type: cluster
+        operations:
+          - Create
+          - Alter
+        host: "*"
+      - resource:
+          type: group
+          name: "*"
+          patternType: literal
+        operations:
+          - Read
+        host: "*"

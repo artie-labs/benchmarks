@@ -1,0 +1,130 @@
+# https://strimzi.io/blog/2021/03/29/connector-build/
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: connect
+  namespace: kafka
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  version: 3.9.0 # snowflake connector requires 3.9.0 https://docs.snowflake.com/en/user-guide/kafka-connector-install#installation-prerequisites
+  image: artielabs/kafka-connect-snowflake:0.1.0
+  bootstrapServers: artie-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093
+  authentication:
+    type: scram-sha-512
+    username: artie
+    passwordSecret:
+      secretName: kafka-secret
+      password: KAFKA_SCRAM_PASSWORD
+  config:
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+    group.id: connect-cluster
+    offset.storage.topic: connect-cluster-offsets
+    config.storage.topic: connect-cluster-configs
+    status.storage.topic: connect-cluster-status
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: true
+    offset.flush.interval.ms: "10000"
+  # Example to build the docker image with the exact plugin dependencies
+  # Create secret with:
+  # kubectl create secret docker-registry dockerhub-credentials \
+  # -n kafka \
+  # --docker-server=https://index.docker.io/v1/ \
+  # --docker-username=<your-username> \
+  # --docker-password=<your-token>
+  #
+  # build:
+  #   output:
+  #     type: docker
+  #     image: artielabs/kafka-connect-snowflake:0.1.0
+  #     pushSecret: dockerhub-credentials
+  #   plugins:
+  #     - name: debezium-postgres-connector
+  #       artifacts:
+  #         - type: maven
+  #           group: io.debezium
+  #           artifact: debezium-connector-postgres
+  #           version: 3.4.2.Final
+  #     - name: snowflake-connector
+  #       artifacts:
+  #         - type: maven
+  #           repository: https://repo1.maven.org/maven2/
+  #           group: com.snowflake
+  #           artifact: snowflake-kafka-connector
+  #           version: 3.5.3
+  #         - type: maven
+  #           repository: https://repo1.maven.org/maven2/
+  #           group: org.bouncycastle
+  #           artifact: bc-fips
+  #           version: 2.1.2
+  #         - type: maven
+  #           repository: https://repo1.maven.org/maven2/
+  #           group: org.bouncycastle
+  #           artifact: bcpkix-fips
+  #           version: 2.1.10
+  template:
+    pod:
+      volumes:
+        - name: postgres-config
+          secret:
+            secretName: postgres-credentials
+        - name: snowflake-config
+          secret:
+            secretName: snowflake-credentials
+    connectContainer:
+      volumeMounts:
+        - name: postgres-config
+          mountPath: /mnt/postgres-config
+        - name: snowflake-config
+          mountPath: /mnt/snowflake-config
+---
+# https://strimzi.io/blog/2020/01/27/deploying-debezium-with-kafkaconnector-resource/#:~:text=Create%20the%20connector
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: postgres-source-connector
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: connect
+spec:
+  class: io.debezium.connector.postgresql.PostgresConnector
+  tasksMax: 1
+  config:
+    database.hostname: "${file:/mnt/postgres-config/postgres.properties:hostname}"
+    database.dbname: postgres
+    database.user: "${file:/mnt/postgres-config/postgres.properties:username}"
+    database.password: "${file:/mnt/postgres-config/postgres.properties:password}"
+    topic.prefix: dbserver1
+    plugin.name: pgoutput
+    include.schema.changes: "true"
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: snowflake-sink-connector
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: connect
+spec:
+  class: com.snowflake.kafka.connector.SnowflakeSinkConnector
+  tasksMax: 1
+  config:
+    topics: "dbserver1.public.pgbench_accounts"
+    snowflake.topic2table.map: "dbserver1.public.pgbench_accounts:pgbench_accounts_history"
+    snowflake.url.name: "${file:/mnt/snowflake-config/snowflake.properties:account}.${file:/mnt/snowflake-config/snowflake.properties:region}.snowflakecomputing.com:443"
+    snowflake.user.name: "${file:/mnt/snowflake-config/snowflake.properties:username}"
+    snowflake.private.key: "${file:/mnt/snowflake-config/snowflake.properties:private_key}"
+    snowflake.private.key.passphrase: "${file:/mnt/snowflake-config/snowflake.properties:private_key_passphrase}"
+    snowflake.database.name: "${file:/mnt/snowflake-config/snowflake.properties:database}"
+    snowflake.schema.name: "${file:/mnt/snowflake-config/snowflake.properties:schema}"
+    snowflake.role.name: "${file:/mnt/snowflake-config/snowflake.properties:role}"
+    snowflake.warehouse.name: "${file:/mnt/snowflake-config/snowflake.properties:warehouse}"
+    key.converter: "org.apache.kafka.connect.storage.StringConverter"
+    value.converter: "com.snowflake.kafka.connector.records.SnowflakeJsonConverter"
+    buffer.count.records: "150000"
+    buffer.flush.time: "30"
+    buffer.size.bytes: "50000000"
+    behavior.on.null.values: "IGNORE"
