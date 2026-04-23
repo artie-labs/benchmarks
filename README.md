@@ -6,7 +6,7 @@ In Snowflake, the following queries were ran:
 
 - Latency statistics for history table
   [Artie Latency (bucketed)](data/Artie_latency_history_table_2026_03_23.csv)
-  [DMS Latency (bucketed)](data/DMS_latency_history_table_2026_03_24.csv)
+  [DMS Latency (bucketed)](data/DMS_latency_history_table_2026_03_23.csv)
   ```sql
   -- aggregated
   SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
@@ -31,6 +31,8 @@ In Snowflake, the following queries were ran:
   ```
 
 - Latency statistics for target table
+  [Artie Latency](data/Artie_latency_replication_table_2026_03_23.csv)
+  [DMS Latency](data/DMS_latency_replication_table_2026_03_23.csv)
   ```sql
   -- since last update wins, this aggregates the latency for the last write on all updated rows
   SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
