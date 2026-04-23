@@ -1,5 +1,48 @@
 # Benchmarks
 
+## Results
+
+In Snowflake, the following queries were ran:
+
+- Latency statistics for history table
+  [Artie Latency (bucketed)](data/Artie_latency_history_table_2026_03_23.csv)
+  [DMS Latency (bucketed)](data/DMS_latency_history_table_2026_03_24.csv)
+  ```sql
+  -- aggregated
+  SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
+  (SELECT
+    AID,
+    FILLER::TIMESTAMP_TZ           AS pg_commit_time,
+    METADATA$ROW_LAST_COMMIT_TIME  AS snowflake_loaded_at,
+    DATEDIFF('second', pg_commit_time, snowflake_loaded_at) AS latency_seconds
+  FROM <history table>
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY AID ORDER BY METADATA$ROW_LAST_COMMIT_TIME DESC) = 1);
+
+  -- bucket by minute
+  SELECT
+    DATE_TRUNC('minute', METADATA$ROW_LAST_COMMIT_TIME) AS snowflake_minute,
+    COUNT(*)                                              AS row_count,
+    AVG(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS avg_latency_s,
+    MAX(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS max_latency_s,
+    MIN(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS min_latency_s
+  FROM <history table>
+  GROUP BY 1
+  ORDER BY 1;
+  ```
+
+- Latency statistics for target table
+  ```sql
+  -- since last update wins, this aggregates the latency for the last write on all updated rows
+  SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
+  (SELECT
+    AID,
+    FILLER::TIMESTAMP_TZ           AS pg_commit_time,
+    METADATA$ROW_LAST_COMMIT_TIME  AS snowflake_loaded_at,
+    DATEDIFF('second', pg_commit_time, snowflake_loaded_at) AS latency_seconds
+  FROM <target table>
+  WHERE FILLER <> '');
+  ```
+
 ## Prerequisites
 
 ### AWS
@@ -346,44 +389,7 @@ source credentials
 
 ### 6. Results
 
-In Snowflake, run the following queries:
-
-- Latency statistics for history table
-  ```sql
-  -- aggregated
-  SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
-  (SELECT
-    AID,
-    FILLER::TIMESTAMP_TZ           AS pg_commit_time,
-    METADATA$ROW_LAST_COMMIT_TIME  AS snowflake_loaded_at,
-    DATEDIFF('second', pg_commit_time, snowflake_loaded_at) AS latency_seconds
-  FROM <history table>
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY AID ORDER BY METADATA$ROW_LAST_COMMIT_TIME DESC) = 1);
-
-  -- bucket by minute
-  SELECT
-    DATE_TRUNC('minute', METADATA$ROW_LAST_COMMIT_TIME) AS snowflake_minute,
-    COUNT(*)                                              AS row_count,
-    AVG(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS avg_latency_s,
-    MAX(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS max_latency_s,
-    MIN(DATEDIFF('second', FILLER::TIMESTAMP_TZ, METADATA$ROW_LAST_COMMIT_TIME)) AS min_latency_s
-  FROM <history table>
-  GROUP BY 1
-  ORDER BY 1;
-  ```
-
-- Latency statistics for target table
-  ```sql
-  -- since last update wins, this aggregates the latency for the last write on all updated rows
-  SELECT AVG(latency_seconds), MAX(latency_seconds), MIN(latency_seconds) FROM
-  (SELECT
-    AID,
-    FILLER::TIMESTAMP_TZ           AS pg_commit_time,
-    METADATA$ROW_LAST_COMMIT_TIME  AS snowflake_loaded_at,
-    DATEDIFF('second', pg_commit_time, snowflake_loaded_at) AS latency_seconds
-  FROM <target table>
-  WHERE FILLER <> '');
-  ```
+Refer to the 'Results' section at the top.
 
 </details>
 
