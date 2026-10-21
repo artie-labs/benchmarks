@@ -1,5 +1,8 @@
 # Benchmarks
 
+- [BigQuery MERGE partition pruning](bigquery-merge-partition): bytes scanned and cost of CDC merges with and without a partition filter, and Artie's raw records vs Debezium JSON.
+- Artie vs AWS DMS replication latency into Snowflake: below.
+
 ## Results
 
 In Snowflake, the following queries were ran:
