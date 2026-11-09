@@ -1,0 +1,35 @@
+#!/bin/bash
+# Installs Docker, Compose and the Oracle driver, then copies the box folder to /opt/oracle-bench.
+set -euo pipefail
+
+dnf install -y docker python3-pip
+systemctl enable --now docker
+
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+  "https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-linux-x86_64"
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Rerun after `terraform apply` changes the box folder. It keeps state/, results/ and .env, which only exist here.
+cat > /usr/local/bin/oracle-bench-sync <<'SYNC'
+#!/bin/bash
+set -euo pipefail
+aws s3 sync --delete --exclude 'state/*' --exclude 'results/*' --exclude '.env' \
+  "s3://${bucket}/box/" /opt/oracle-bench/
+chmod +x /opt/oracle-bench/bench.py
+SYNC
+chmod +x /usr/local/bin/oracle-bench-sync
+/usr/local/bin/oracle-bench-sync
+
+pip3 install -r /opt/oracle-bench/requirements.txt
+
+cat > /opt/oracle-bench/.env <<'ENV'
+BENCH_MODE=rds
+AWS_REGION=${region}
+ORACLE_HOST=${oracle_host}
+MASTER_SECRET_ARN=${master_secret_arn}
+DB_INSTANCE_ID=${db_instance_id}
+BUCKET=${bucket}
+TRANSFER_ROLE_ARN=${transfer_role_arn}
+ENV
+chmod 600 /opt/oracle-bench/.env

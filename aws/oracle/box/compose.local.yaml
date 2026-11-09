@@ -1,0 +1,29 @@
+# Local smoke test only. Oracle Free is capped at two CPUs and 2 GB of RAM, so its numbers say nothing about
+# production throughput. Enable it with COMPOSE_FILE in .env (see local.env).
+services:
+  oracle:
+    image: ${LOCAL_ORACLE_IMAGE:-gvenzl/oracle-free:23-slim}
+    environment:
+      ORACLE_PASSWORD: ${LOCAL_ORACLE_PASSWORD:-fixture-only}
+    ports:
+      - "127.0.0.1:1521:1521"
+    volumes:
+      - ./local-init:/container-entrypoint-initdb.d:ro
+    healthcheck:
+      # The init script restarts the database into ARCHIVELOG mode and then reopens FREEPDB1. Wait for both: a
+      # common user created while the PDB is still mounted never reaches it.
+      # FREEPDB1 is container 3. Single quotes keep the shell from expanding $database.
+      test: ["CMD-SHELL", "echo 'SELECT d.log_mode || p.open_mode FROM v$$database d, v$$pdbs p WHERE p.con_id = 3;' | sqlplus -s / as sysdba | grep -q '^ARCHIVELOGREAD WRITE'"]
+      interval: 10s
+      start_period: 300s
+      retries: 60
+
+  reader:
+    depends_on:
+      oracle:
+        condition: service_healthy
+
+  debezium:
+    depends_on:
+      oracle:
+        condition: service_healthy

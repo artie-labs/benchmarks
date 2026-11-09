@@ -1,6 +1,7 @@
 # Benchmarks
 
 - [BigQuery MERGE partition pruning](bigquery-merge-partition): bytes scanned and cost of CDC merges with and without a partition filter, and Artie's raw records vs Debezium JSON.
+- [Oracle CDC throughput](aws/oracle): how fast Reader drains an Oracle LogMiner backlog into Kafka, on RDS for Oracle SE2.
 - Artie vs AWS DMS replication latency into Snowflake: below.
 
 ## Results

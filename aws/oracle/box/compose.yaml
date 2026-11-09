@@ -1,0 +1,81 @@
+name: oracle-bench
+
+services:
+  # One KRaft broker.
+  kafka:
+    image: ${KAFKA_IMAGE:-apache/kafka:4.4.0}
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 1 matches our MSK clusters' default. Topics are created on first write, so a new count applies to new topics.
+      KAFKA_NUM_PARTITIONS: ${KAFKA_PARTITIONS:-1}
+      KAFKA_MESSAGE_MAX_BYTES: 15728640
+      # Each job writes millions of messages and the default keeps them a week, which filled the 100 GB disk on
+      # 2026-11-08. Keep at most 12 GB per partition and 6 hours, which still covers a job's drain and its replays.
+      KAFKA_LOG_RETENTION_BYTES: 12884901888
+      KAFKA_LOG_RETENTION_HOURS: 6
+      KAFKA_LOG_SEGMENT_BYTES: 536870912
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 60000
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 5s
+      timeout: 20s
+      retries: 30
+
+  # bench.py setup writes state/reader.yaml. bench.py starts and stops this service around each drain.
+  reader:
+    image: ${READER_IMAGE:-artielabs/reader:v0.1.654}
+    command: ["--config", "/state/reader.yaml"]
+    environment:
+      # Serves Go's pprof handlers on the liveness port, where bench.py drain --profile-seconds reads them.
+      READER_PPROF: "true"
+      # true logs each LogMiner session's SCN range, which bench.py drain totals.
+      READER_DEBUG: ${READER_DEBUG:-}
+      # Go runtime tuning for A/Bs. Empty means Go's defaults.
+      GOGC: ${READER_GOGC:-}
+      GOMEMLIMIT: ${READER_GOMEMLIMIT:-}
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./state:/state
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # Debezium Server, as the dashboard deploys it for Oracle pipelines that don't stream through Reader.
+  # bench.py setup writes state/debezium/conf/application.properties. Drive it with ./bench.py --engine debezium.
+  debezium:
+    image: ${DEBEZIUM_IMAGE:-artielabs/debezium-server:2.7-oracle}
+    environment:
+      # Production's heap, from the dashboard's debezium.env template.
+      JAVA_OPTS: -Xms256m -Xmx6144m
+    volumes:
+      - ./state/debezium/conf:/debezium/conf
+      - ./state/debezium/offsets:/debezium/offsets
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # Optional: Kafka to Parquet in the bench bucket. Start it with `docker compose up -d transfer`.
+  transfer:
+    image: ${TRANSFER_IMAGE:-artielabs/transfer:v1.29.328}
+    command: ["--config", "/state/transfer.yaml"]
+    profiles: ["transfer"]
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-west-2}
+    volumes:
+      - ./state:/state:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
