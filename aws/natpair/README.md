@@ -1,0 +1,133 @@
+# natpair limits
+
+Measures what a [natpair](https://github.com/artie-labs/natpair) pair forwards before AWS's network allowances drop
+packets: bandwidth and packets per second per instance type, the NAT's CPU per packet, the burst allowance, how fast
+the ENA allowance counters refresh, and whether the pair stays healthy and can hand over while saturated.
+[RESULTS.md](RESULTS.md) has the findings.
+
+## Layout
+
+```
+test VPC 10.40.0.0/16                                  receiver VPC 10.50.0.0/16
+  worker subnet 10.40.1.0/24                             receiver subnet 10.50.0.0/24
+    2 load generators ── 0.0.0.0/0 ──> shared ENI          receiver: iperf3 servers, job queue
+  public subnet 10.40.0.0/24                                   ^
+    natpair NAT a, NAT b (shared ENI on the owner)             |
+    public route table: 10.50.0.0/16 ──> VPC peering ──────────┘
+```
+
+Workers reach the receiver only through the NAT: the worker route table has just the default route to the shared
+ENI, and only the NATs' public route table routes the receiver's CIDR over the peering. natpair translates every
+worker packet to the shared ENI's private address, whatever the destination, so this loads the NAT the way internet
+traffic does. Each run checks that the receiver sees only that address. Everything is in one zone, where peering
+carries no transfer charge. Generators and the receiver use a 1500-byte MTU, as internet paths do.
+
+Uploads (`MODE=up`) enter and leave the owner through the shared ENI. Replies to workers (`MODE=down`) enter through
+the shared ENI and leave through the owner's own ENI, because natpair's routing rules send only traffic from the
+worker CIDRs through the shared ENI's table.
+
+## Cost
+
+About $0.66 an hour with c7gn.medium NATs, at us-west-2 on-demand prices:
+
+| Item | $/hour |
+| --- | --- |
+| 2 c7gn.medium NATs (c7gn.large: 0.25) | 0.12 |
+| 2 c7gn.large load generators | 0.25 |
+| c7gn.xlarge receiver | 0.25 |
+| 4 public IPv4 addresses: the shared Elastic IP, each NAT's own, the receiver's | 0.02 |
+| 5 8 GB gp3 volumes, DynamoDB, Lambda probes, S3 | 0.01 |
+
+Generators and the receiver stop 4 hours after each boot (`auto_stop_minutes`). The NATs don't, so destroy the
+stack when done.
+
+## Prerequisites
+
+- Terraform 1.6 or later, Go, and the AWS CLI with the
+  [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
+- An AWS profile that can create VPCs, IAM roles and instances, such as the customer sandbox account's
+  `OrganizationAccountAccessRole`.
+
+## Deploy
+
+```sh
+cp tf/terraform.tfvars.example tf/terraform.tfvars   # set aws_profile
+./scripts/build.sh                                   # builds box/bin/enapoll for arm64
+terraform -chdir=tf init
+terraform -chdir=tf apply
+```
+
+On a first apply, the NATs boot before the module attaches their IAM policy, and their SSM agent never registers.
+Replace each NAT once, the standby first, so they boot with the policy in place (see natpair's
+[Replace a NAT](https://github.com/artie-labs/natpair/blob/master/docs/operations.md#replace-a-nat)):
+
+```sh
+terraform -chdir=tf apply -replace='module.natpair.aws_instance.nat["b"]'
+# wait for the new NAT's health round with "ready":true, then
+terraform -chdir=tf apply -replace='module.natpair.aws_instance.nat["a"]'
+```
+
+Check that all five instances are online:
+
+```sh
+aws ssm describe-instance-information --filters Key=tag:bench,Values=natpair \
+  --query 'InstanceInformationList[].[InstanceId,PingStatus]' --output text
+```
+
+After changing files in `box`, run `terraform -chdir=tf apply`. The queue syncs them before each job.
+
+## Run
+
+Never run benchmarks on the instances by hand. Queue a job:
+
+```sh
+./scripts/submit-job.sh medium-1-refresh jobs/1-refresh.sh
+./scripts/fetch-results.sh   # copies summaries and job logs into results/
+```
+
+The receiver runs jobs one at a time, oldest first, so queue the next jobs before one ends and the instances never
+sit idle. A job is a bash script that runs in `/opt/natpair-bench` on the receiver and calls `./run.sh` once per
+measured run. `run.sh` lists its settings at the top. Each run starts `enapoll` on both NATs, each generator and the
+receiver at the same moment, runs iperf3 from the generators, gathers every host's files from
+`s3://<bucket>/runs/<run>/` and writes a summary to `results/<run>.json`. Job logs are in `results/queue/`.
+
+| Job | Measures |
+| --- | --- |
+| [1-refresh](jobs/1-refresh.sh) | Cost of one counter read, the packets-per-second ramp, counter refresh under steady and on/off overload |
+| [2-burst](jobs/2-burst.sh) | Full-speed uploads until the NAT falls back to its baseline bandwidth |
+| [3-limits](jobs/3-limits.sh) | Most each direction forwards with 1460-byte and 88-byte TCP segments, right after the burst |
+| [4-cpu](jobs/4-cpu.sh) | The NAT's CPU at fixed rates below its limits |
+| [5-health](jobs/5-health.sh) | `natpair maintenance` on a saturated owner: forwarding gap, lease renewals, conntrackd |
+
+`box/bin/enapoll` (source in [enapoll](enapoll)) reads the ENA counters with the ethtool ioctl that `ethtool -S`
+uses, every 10 ms by default, and records how long each read took. It also samples `/proc/stat` per CPU, and the CPU
+time of conntrackd, natpair and iperf3, once a second. Each summary has, per host and interface, the steady rates
+(the load minus its first 3 s), the last 30 s, a per-second timeline for the NATs, every allowance counter change
+with the gaps between changes, CPU per forwarded packet, iperf3 totals, the ping gap and natpair's journal lines that
+matter.
+
+To compare instance types, change `nat_instance_type` and apply it to one NAT at a time, the standby first, as
+natpair's operations guide describes. The jobs read the NAT type from the bench, so they rerun unchanged.
+
+## A natpair dev build
+
+Upload the build's `natpair_linux_arm64.tar.gz` to `s3://<bucket>/natpair/<tag>/` and set, in `terraform.tfvars`:
+
+```hcl
+natpair_release_url    = "s3://<bucket>/natpair"
+natpair_release        = "<tag>"
+natpair_release_sha256 = "<sha256 of the archive>"
+```
+
+An apply pins the new release, and the pair rolls itself to it, as in natpair's upgrade guide.
+
+## Tear down
+
+```sh
+terraform -chdir=tf destroy
+aws resourcegroupstaggingapi get-resources --tag-filters Key=bench,Values=natpair \
+  --query 'ResourceTagMappingList[].ResourceARN'
+```
+
+The tagging API can list deleted resources for a while. Check instances, addresses, network interfaces and peering
+connections directly if it shows any.
