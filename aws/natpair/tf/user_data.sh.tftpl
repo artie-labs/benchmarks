@@ -1,0 +1,67 @@
+#!/bin/bash
+# First boot of a bench instance (${role}): auto-stop, tools, and the box folder in /opt/natpair-bench.
+set -euo pipefail
+
+# Every boot: stop after ${auto_stop_minutes} minutes. cloud-init runs per-boot scripts before user data on the first
+# boot, so this runs it once by hand too. host.sh sets the 1500-byte MTU before each run, since DHCP resets it.
+cat > /var/lib/cloud/scripts/per-boot/natpair-bench.sh <<'BOOT'
+#!/bin/bash
+shutdown -h +${auto_stop_minutes}
+BOOT
+chmod +x /var/lib/cloud/scripts/per-boot/natpair-bench.sh
+/var/lib/cloud/scripts/per-boot/natpair-bench.sh
+
+# Amazon Linux's package mirrors are in S3, reached through the VPC's S3 endpoint.
+until dnf install -y iperf3 sysstat ethtool jq; do
+  sleep 5
+done
+
+cat > /etc/natpair-bench.env <<'ENV'
+BUCKET=${bucket}
+AWS_REGION=${region}
+AWS_DEFAULT_REGION=${region}
+ROLE=${role}
+ENV
+
+# Rerun after `terraform apply` changes the box folder. The queue runs it before every job.
+cat > /usr/local/bin/natpair-bench-sync <<'SYNC'
+#!/bin/bash
+set -euo pipefail
+. /etc/natpair-bench.env
+aws s3 sync --only-show-errors --delete --exclude 'bench.env' "s3://$BUCKET/box/" /opt/natpair-bench/
+aws s3 cp --only-show-errors "s3://$BUCKET/bench.env" /opt/natpair-bench/bench.env
+chmod +x /opt/natpair-bench/*.sh /opt/natpair-bench/bin/*
+SYNC
+chmod +x /usr/local/bin/natpair-bench-sync
+until /usr/local/bin/natpair-bench-sync; do
+  sleep 5
+done
+
+%{ if role == "receiver" ~}
+# One iperf3 server per client process: an iperf3 server runs one test at a time.
+cat > /etc/systemd/system/iperf3@.service <<'UNIT'
+[Unit]
+Description=iperf3 server on port %i
+
+[Service]
+ExecStart=/usr/bin/iperf3 --server --port %i
+Restart=always
+RestartSec=1
+UNIT
+cat > /etc/systemd/system/natpair-bench-queue.service <<'UNIT'
+[Unit]
+Description=natpair bench job queue
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/natpair-bench.env
+ExecStart=/opt/natpair-bench/queue.sh
+Restart=always
+RestartSec=10
+UNIT
+systemctl daemon-reload
+for port in $(seq 5201 5232); do
+  systemctl enable --now "iperf3@$port"
+done
+systemctl enable --now natpair-bench-queue
+%{ endif ~}
