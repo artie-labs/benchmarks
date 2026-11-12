@@ -56,6 +56,9 @@ def read_enapoll(path):
     by_iface = {}
     with gzip.open(path, "rt") as f:
         for row in csv.DictReader(f):
+            # A sampler stopped mid-write leaves a short last row.
+            if row.get("linklocal_allowance_exceeded") is None:
+                continue
             r = {"t": int(row["t_ns"]) / 1e9, "read_ns": int(row["read_ns"])}
             for k in ("rx_packets", "tx_packets", "rx_bytes", "tx_bytes"):
                 r[k] = int(row[k])
@@ -95,9 +98,11 @@ def rates(rows, start, end):
         if w[0][c] is not None:
             out[c] = increase(w, c)
             out[c + "_per_s"] = round(out[c] / dt)
-    # Sampling gaps over a second mean the interface was gone, such as the shared ENI during a takeover.
+    # Sampling gaps of over three intervals mean the interface was gone, such as the shared ENI during a takeover,
+    # or the sampler was starved of CPU.
     gaps = [b["t"] - a["t"] for a, b in zip(w, w[1:])]
-    out["missing_s"] = round(sum(g for g in gaps if g > 1.0), 2)
+    usual = statistics.median(gaps)
+    out["missing_s"] = round(sum(g for g in gaps if g > max(3 * usual, 0.05)), 2)
     return out
 
 
@@ -380,6 +385,9 @@ def analyze(run_dir):
         instance = os.path.basename(host_dir)
         role = roles.get(instance, "receiver")
         host = {"role": role, "interfaces": read_interfaces(host_dir)}
+        kernel = os.path.join(host_dir, "kernel.txt")
+        if os.path.exists(kernel):
+            host["kernel"] = open(kernel).read().strip()
         enapoll = os.path.join(host_dir, "enapoll.csv.gz")
         if os.path.exists(enapoll):
             by_iface = read_enapoll(enapoll)
@@ -397,11 +405,15 @@ def analyze(run_dir):
                 host.setdefault("read_us", {})[label] = summarize(reads)
                 if role in ("owner", "standby"):
                     host.setdefault("timeline", {})[label] = per_second(rows, load_at)
-                    host.setdefault("counter_changes", {})[label] = counter_changes(rows, load_at, load_at + duration)
-                    if meta["PATTERN"] == "onoff":
-                        edges = load_edges(rows)
-                        host.setdefault("load_edges", {})[label] = len(edges)
-                        host.setdefault("edge_delays", {})[label] = edge_delays(rows, edges)
+                    host.setdefault("counter_changes", {})[label] = counter_changes(rows, load_at, end + 5)
+                    # Every run has a start and a stop edge, and on/off runs one pair per cycle. linklocal.sh
+                    # records the exact start and stop of each burst of queries.
+                    edges = load_edges(rows)
+                    edges_file = os.path.join(host_dir, "edges.txt")
+                    if os.path.exists(edges_file):
+                        edges = [(kind, float(t)) for kind, t in (line.split() for line in open(edges_file))]
+                    host.setdefault("load_edges", {})[label] = len(edges)
+                    host.setdefault("edge_delays", {})[label] = edge_delays(rows, edges)
                 if role == "receiver" and handover_at:
                     host.setdefault("receive_gap", {})[label] = receive_gap(rows, load_at + 1, load_at + duration - 1)
             if role in ("owner", "standby"):

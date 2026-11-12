@@ -112,7 +112,15 @@ func main() {
 	defer ticker.Stop()
 	deadline := time.Now().Add(*duration)
 	lastScan := time.Now()
+	lastFlush := time.Now()
 	for now := time.Now(); now.Before(deadline) && len(stop) == 0; now = <-ticker.C {
+		// Flush once a second, so a sampler killed outright loses at most a second of rows.
+		if now.Sub(lastFlush) >= time.Second {
+			lastFlush = now
+			if err := bw.Flush(); err != nil {
+				fail("write: %v", err)
+			}
+		}
 		if auto && now.Sub(lastScan) >= time.Second {
 			lastScan = now
 			for _, name := range enaInterfaces() {

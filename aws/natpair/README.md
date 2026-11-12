@@ -93,11 +93,29 @@ receiver at the same moment, runs iperf3 from the generators, gathers every host
 
 | Job | Measures |
 | --- | --- |
-| [1-refresh](jobs/1-refresh.sh) | Cost of one counter read, the packets-per-second ramp, counter refresh under steady and on/off overload |
-| [2-burst](jobs/2-burst.sh) | Full-speed uploads until the NAT falls back to its baseline bandwidth |
-| [3-limits](jobs/3-limits.sh) | Most each direction forwards with 1460-byte and 88-byte TCP segments, right after the burst |
+| [1-refresh](jobs/1-refresh.sh) | Cost of one counter read, the packets-per-second ramp over 16 flows, 3 runs offered more than the CPU forwards |
+| [1b-ramp-64flows](jobs/1b-ramp-64flows.sh) | The ramp over 64 flows, to spread them over a larger NAT's queues |
+| [2-burst](jobs/2-burst.sh) | Full-speed uploads until the NAT falls back to its baseline bandwidth, sampled every 10 ms |
+| [2c-drop-10ms](jobs/2c-drop-10ms.sh) | The same with 120 s of AWS dropping before the stop |
+| [2d-drop-1ms](jobs/2d-drop-1ms.sh), [2e-drop-1ms-window](jobs/2e-drop-1ms-window.sh) | The drop phase sampled every 1 ms. 2e samples only once the burst is spent, to keep the data small |
+| [3-limits](jobs/3-limits.sh) | Downloads, and small UDP packets up and down, at capped rates |
 | [4-cpu](jobs/4-cpu.sh) | The NAT's CPU at fixed rates below its limits |
 | [5-health](jobs/5-health.sh) | `natpair maintenance` on a saturated owner: forwarding gap, lease renewals, conntrackd |
+| [6-pps-sustained](jobs/6-pps-sustained.sh) | 10 minutes of small UDP packets below the CPU limit, for a packet-rate burst |
+| [7-igw](jobs/7-igw.sh) | One 60 s run through the internet gateway. Set `igw_check = true` first. About 5 GB of public transfer |
+
+[lib.sh](box/lib.sh) sets each type's rates: `TCP_CAP`, `UDP_CAP` and `BURST_CAP` stay below what the NAT's CPU
+forwards, so AWS's allowance is the limit, not the CPU. Offered more, a NAT's own lease and probe traffic starves and
+the pair flaps (see RESULTS.md).
+
+To measure the counters' refresh without loading the owner, [box/linklocal.sh](box/linklocal.sh) floods the VPC
+resolver from one NAT, usually the standby, past AWS's 1,024 packets a second link-local limit, and samples that NAT:
+
+```sh
+./scripts/onbox.sh <standby id> 300 "aws s3 cp s3://<bucket>/box/linklocal.sh /tmp/ && \
+  env BUCKET=<bucket> AWS_REGION=us-west-2 RUN=$(date -u +%Y%m%dT%H%M%SZ)-<type>-linklocal-1 \
+  bash /tmp/linklocal.sh 3000 2 3 12 1ms"
+```
 
 `box/bin/enapoll` (source in [enapoll](enapoll)) reads the ENA counters with the ethtool ioctl that `ethtool -S`
 uses, every 10 ms by default, and records how long each read took. It also samples `/proc/stat` per CPU, and the CPU
@@ -111,7 +129,9 @@ natpair's operations guide describes. The jobs read the NAT type from the bench,
 
 ## A natpair dev build
 
-Upload the build's `natpair_linux_arm64.tar.gz` to `s3://<bucket>/natpair/<tag>/` and set, in `terraform.tfvars`:
+NATs download their release at first boot, so the archive must be in the bucket before they start. Create the bucket
+first, upload the build as `natpair/<tag>/natpair_linux_arm64.tar.gz`, then apply the rest. The tag must be the one
+the build embeds, or the NATs' updater keeps trying to move to the pinned one.
 
 ```hcl
 natpair_release_url    = "s3://<bucket>/natpair"
@@ -119,7 +139,14 @@ natpair_release        = "<tag>"
 natpair_release_sha256 = "<sha256 of the archive>"
 ```
 
-An apply pins the new release, and the pair rolls itself to it, as in natpair's upgrade guide.
+```sh
+terraform -chdir=tf apply -target=aws_s3_bucket.bench -target=aws_s3_bucket_public_access_block.bench
+aws s3 cp natpair_linux_arm64.tar.gz "s3://$(terraform -chdir=tf output -raw bucket)/natpair/<tag>/"
+terraform -chdir=tf apply
+```
+
+If the build needs a newer module, such as one with new inputs, change the `?ref=` of the module source in
+[tf/natpair.tf](tf/natpair.tf) as well. The module gives the NATs read access to an `s3://` release prefix.
 
 ## Tear down
 

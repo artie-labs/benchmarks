@@ -69,3 +69,9 @@ variable "auto_stop_minutes" {
   type        = number
   default     = 240
 }
+
+variable "igw_check" {
+  description = "Let the receiver accept traffic from the shared Elastic IP, for a run with TARGET=public through the internet gateway. Such a run pays public data transfer, so leave it off otherwise."
+  type        = bool
+  default     = false
+}

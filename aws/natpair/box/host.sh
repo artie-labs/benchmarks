@@ -34,6 +34,7 @@ list_interfaces() {
 
 instance=$(imds instance-id)
 echo "$role" > role.txt
+uname -r > kernel.txt
 # Generators and the receiver use a 1500-byte MTU, as paths through an internet gateway do, so the NAT forwards
 # internet-sized packets. DHCP sets 9001 at boot, so this sets it before every run and records it.
 if [[ $role != nat ]]; then
@@ -42,9 +43,8 @@ if [[ $role != nat ]]; then
   cat "/sys/class/net/$dev/mtu" > mtu.txt
 fi
 list_interfaces > interfaces-start.txt
-if [[ ! -x $base/enapoll ]]; then
-  aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/enapoll" "$base/enapoll" && chmod +x "$base/enapoll"
-fi
+# Fetched every run, so a rebuilt enapoll reaches every host.
+aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/enapoll" "$base/enapoll" && chmod +x "$base/enapoll"
 
 sleep_until "$START"
 "$base/enapoll" -i auto -interval "$INTERVAL" -duration "${SAMPLE_SECONDS}s" -out enapoll.csv \
@@ -90,7 +90,9 @@ fi
 
 if [[ $role == recv ]]; then
   # Which sources the receiver sees. Every worker flow should come from the shared ENI's private address.
-  sleep_until "$((LOAD_AT + DURATION / 2))"
+  # Halfway through a short run, 30 s into a long one, which may be stopped early.
+  half=$((DURATION / 2))
+  sleep_until "$((LOAD_AT + (half < 30 ? half : 30)))"
   ss -Htna '( sport >= :5201 and sport <= :5232 )' > peers.txt
   ss -Huna '( sport >= :5201 and sport <= :5232 )' >> peers.txt
 fi
