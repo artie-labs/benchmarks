@@ -11,6 +11,16 @@ BOOT
 chmod +x /var/lib/cloud/scripts/per-boot/natpair-bench.sh
 /var/lib/cloud/scripts/per-boot/natpair-bench.sh
 
+# Many short connections (jobs/s5-churn.sh) need TIME_WAIT reuse, a wide port range and deep accept queues.
+cat > /etc/sysctl.d/90-natpair-bench.conf <<'SYSCTL'
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.ip_local_port_range = 1024 65000
+net.core.somaxconn = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+fs.file-max = 2097152
+SYSCTL
+sysctl --system > /dev/null
+
 # Amazon Linux's package mirrors are in S3, reached through the VPC's S3 endpoint.
 until dnf install -y iperf3 sysstat ethtool jq; do
   sleep 5
@@ -59,7 +69,19 @@ ExecStart=/opt/natpair-bench/queue.sh
 Restart=always
 RestartSec=10
 UNIT
+# The churn server for jobs/s5-churn.sh: a new connection per 4 KB request, on 64 ports.
+cat > /etc/systemd/system/churn-server.service <<'UNIT'
+[Unit]
+Description=churn server, ports 6000-6063
+
+[Service]
+ExecStart=/opt/natpair-bench/bin/churn -serve -ports 6000-6063
+LimitNOFILE=1048576
+Restart=always
+RestartSec=1
+UNIT
 systemctl daemon-reload
+systemctl enable --now churn-server
 for port in $(seq 5201 5232); do
   systemctl enable --now "iperf3@$port"
 done

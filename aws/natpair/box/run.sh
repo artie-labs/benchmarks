@@ -15,6 +15,11 @@
 #   PING=0|1               generator 0 pings the receiver 100 times a second through the NAT
 #   HANDOVER_AT=           seconds into the load to run `natpair maintenance` on the owner, then `natpair resume`
 #                          after the run
+#   PACING=keep|on|off     runs `natpair pacing-on` or `pacing-off` on both NATs before the run. keep leaves them.
+#   TOGGLE_AT=             seconds into the load to run `natpair pacing-off` on the owner; pacing-on follows 20 s
+#                          later
+#   MODE=fair LIGHT_RATE=100M  one heavy worker and four light ones from distinct addresses (see host.sh)
+#   MODE=churn CHURN_RATE=5000 CHURN_SIZE=4096  new connections a second in total, bytes per request
 #   TARGET=private|public  public sends to the receiver's public IP, through the NATs' internet gateway, the path
 #                          production traffic takes. It needs igw_check = true in Terraform, and costs transfer.
 #   STOP_BELOW_GBPS=       end the run early once the receiver's rate (rx for up, tx for down) has been above this
@@ -29,9 +34,10 @@ name=$1
 shift
 MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2
 POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60 TARGET=private
+PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096
 for kv in "$@"; do
   case "${kv%%=*}" in
-    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET) declare "$kv" ;;
+    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE) declare "$kv" ;;
     *) echo "unknown setting: $kv" >&2; exit 2 ;;
   esac
 done
@@ -48,11 +54,20 @@ fi
 start=$(($(date +%s) + 20))
 load_at=$((start + PRE))
 sample=$((PRE + DURATION + POST))
-common="RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF RECEIVER_IP=$receiver_ip"
+generators_count=$(wc -w <<< "$GENERATORS")
+common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF RECEIVER_IP=$receiver_ip"
 timeout=$((sample + 300))
 
 systemctl restart 'iperf3@*'
 sleep 1
+
+if [[ $PACING == on || $PACING == off ]]; then
+  for nat in "$NAT_A" "$NAT_B"; do
+    on "$nat" 60 "natpair pacing-$PACING" > /dev/null || echo "natpair pacing-$PACING failed on $nat"
+  done
+  # The daemon applies the request within a second.
+  sleep 3
+fi
 
 echo "run $run: owner $owner, standby $standby, load at $(date -u -d "@$load_at" +%FT%TZ)"
 declare -A commands
@@ -63,7 +78,9 @@ i=0
 for gen in $GENERATORS; do
   ping=0
   [[ $i == 0 ]] && ping=$PING
-  commands[$gen]=$(ssm_send "$gen" "$timeout" "$(host_command gen "$common INTERVAL=$GPOLL PING=$ping GEN_INDEX=$i")")
+  addrs_var=GEN_ADDRS_$i
+  addrs=${!addrs_var:-}
+  commands[$gen]=$(ssm_send "$gen" "$timeout" "$(host_command gen "$common INTERVAL=$GPOLL PING=$ping GEN_INDEX=$i ADDRS='$addrs'")")
   i=$((i + 1))
 done
 env $common INTERVAL=$RPOLL PING=0 GEN_INDEX=0 BUCKET=$BUCKET AWS_REGION=$AWS_REGION \
@@ -108,6 +125,16 @@ if [[ -n $STOP_BELOW_GBPS ]]; then
   watcher=$!
 fi
 
+toggle_off= toggle_on=
+if [[ -n $TOGGLE_AT ]]; then
+  sleep "$(awk -v t="$((load_at + TOGGLE_AT))" -v n="$(date +%s.%N)" 'BEGIN { d = t - n; if (d < 0) d = 0; print d }')"
+  toggle_off=$(date +%s.%N)
+  on "$owner" 60 "natpair pacing-off" > /dev/null || echo "natpair pacing-off failed on $owner"
+  sleep 20
+  toggle_on=$(date +%s.%N)
+  on "$owner" 60 "natpair pacing-on" > /dev/null || echo "natpair pacing-on failed on $owner"
+fi
+
 handover_sent= handover_done= resume_done=
 if [[ -n $HANDOVER_AT ]]; then
   sleep "$(awk -v t="$((load_at + HANDOVER_AT))" -v n="$(date +%s.%N)" 'BEGIN { d = t - n; if (d < 0) d = 0; print d }')"
@@ -138,10 +165,11 @@ python3 -I -c 'import json, sys; print(json.dumps(dict(a.split("=", 1) for a in 
   shared_eni="$SHARED_ENI" shared_private_ip="$(shared_private_ip)" start="$start" load_at="$load_at" \
   nat_instance_type="$NAT_INSTANCE_TYPE" generator_instance_type="$GENERATOR_INSTANCE_TYPE" \
   receiver_instance_type="$RECEIVER_INSTANCE_TYPE" natpair_release="$NATPAIR_RELEASE" \
-  handover_sent="$handover_sent" handover_done="$handover_done" resume_done="$resume_done" stopped_at="$stopped_at" \
+  handover_sent="$handover_sent" handover_done="$handover_done" resume_done="$resume_done" stopped_at="$stopped_at" toggle_off="$toggle_off" toggle_on="$toggle_on" \
   MODE="$MODE" PROCS="$PROCS" STREAMS="$STREAMS" RATE="$RATE" MSS="$MSS" LEN="$LEN" DURATION="$DURATION" PRE="$PRE" \
   POST="$POST" PATTERN="$PATTERN" ON="$ON" OFF="$OFF" POLL="$POLL" GPOLL="$GPOLL" RPOLL="$RPOLL" PING="$PING" \
-  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" > "$dir/meta.json"
+  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" PACING="$PACING" LIGHT_RATE="$LIGHT_RATE" CHURN_RATE="$CHURN_RATE" CHURN_SIZE="$CHURN_SIZE" \
+  > "$dir/meta.json"
 aws s3 cp --only-show-errors "$dir/meta.json" "s3://$BUCKET/runs/$run/meta.json"
 aws s3 sync --only-show-errors "s3://$BUCKET/runs/$run/" "$dir/"
 mkdir -p "$RESULTS"

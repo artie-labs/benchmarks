@@ -127,6 +127,14 @@ matter.
 To compare instance types, change `nat_instance_type` and apply it to one NAT at a time, the standby first, as
 natpair's operations guide describes. The jobs read the NAT type from the bench, so they rerun unchanged.
 
+## Phase 2: pacing builds
+
+[RESULTS.md](RESULTS.md#phase-2-pacing-a-b) lists the `jobs/p2-*` jobs and how to resume. `run.sh` takes
+`PACING=on|off` (it runs `natpair pacing-on` or `pacing-off` on both NATs first), `TOGGLE_AT`, `MODE=fair` and
+`MODE=churn` (the [churn](churn) tool: a new connection per request). [scripts/replace-nats.sh](scripts/replace-nats.sh)
+replaces both NATs, the standby first, with a handover in between. On a first apply, use it once so the NATs
+register with SSM.
+
 ## A natpair dev build
 
 NATs download their release at first boot, so the archive must be in the bucket before they start. Create the bucket
