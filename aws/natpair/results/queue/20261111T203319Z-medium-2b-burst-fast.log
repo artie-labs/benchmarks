@@ -1,0 +1,19 @@
+run 20261111T212803Z-c7gn.medium-burst: owner i-08a0cfbdd732f2de8, standby i-08f467968cf73f466, load at 2026-11-11T21:28:28Z
+stopping: receiver at 3.080 Gbps, below 3.4 for 60s
+uploaded nat i-08a0cfbdd732f2de8
+	
+uploaded nat i-08f467968cf73f466
+	
+uploaded gen i-02817dce13cb1b538
+	
+uploaded gen i-0401802af292d83cc
+	
+Traceback (most recent call last):
+  File "/opt/natpair-bench/./analyze.py", line 463, in <module>
+    json.dump(analyze(sys.argv[1]), sys.stdout, indent=1)
+  File "/opt/natpair-bench/./analyze.py", line 385, in analyze
+    by_iface = read_enapoll(enapoll)
+  File "/opt/natpair-bench/./analyze.py", line 61, in read_enapoll
+    r[k] = int(row[k])
+TypeError: int() argument must be a string, a bytes-like object or a number, not 'NoneType'
+2026-11-11T21:51:02Z END 20261111T203319Z-medium-2b-burst-fast.sh rc=1

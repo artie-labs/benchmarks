@@ -1,0 +1,2368 @@
+{
+ "meta": {
+  "run": "20261111T234604Z-c7gn.large-overload-3",
+  "name": "c7gn.large-overload-3",
+  "owner": "i-08a0cfbdd732f2de8",
+  "standby": "i-08f467968cf73f466",
+  "generators": "i-0401802af292d83cc i-02817dce13cb1b538",
+  "receiver_ip": "10.50.0.114",
+  "shared_eni": "eni-0e341a7adfbcd99f8",
+  "shared_private_ip": "10.40.0.197",
+  "start": "1794440784",
+  "load_at": "1794440789",
+  "nat_instance_type": "c7gn.large",
+  "generator_instance_type": "c7gn.large",
+  "receiver_instance_type": "c7gn.xlarge",
+  "natpair_release": "v0.1.1",
+  "handover_sent": "",
+  "handover_done": "",
+  "resume_done": "",
+  "stopped_at": "",
+  "MODE": "udp",
+  "PROCS": "1",
+  "STREAMS": "8",
+  "RATE": "0",
+  "MSS": "",
+  "LEN": "64",
+  "DURATION": "60",
+  "PRE": "5",
+  "POST": "5",
+  "PATTERN": "steady",
+  "ON": "2",
+  "OFF": "2",
+  "POLL": "10ms",
+  "GPOLL": "1s",
+  "RPOLL": "1s",
+  "PING": "0",
+  "HANDOVER_AT": "",
+  "STOP_BELOW_GBPS": "",
+  "STOP_HOLD": "60",
+  "TARGET": "private"
+ },
+ "hosts": {
+  "i-02817dce13cb1b538": {
+   "role": "generator",
+   "interfaces": {
+    "ens5": {
+     "eni": "eni-05873f23695e85913",
+     "ips": "10.40.1.211/24"
+    }
+   },
+   "kernel": "6.18.56-126.188.amzn2023.aarch64",
+   "steady": {
+    "ens5": {
+     "seconds": 55.0,
+     "rx_pps": 1,
+     "rx_gbps": 0.0,
+     "tx_pps": 1506247,
+     "tx_gbps": 1.277,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "whole_run": {
+    "ens5": {
+     "seconds": 69.0,
+     "rx_pps": 1,
+     "rx_gbps": 0.0,
+     "tx_pps": 1312654,
+     "tx_gbps": 1.113,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "tail_30s": {
+    "ens5": {
+     "seconds": 28.99,
+     "rx_pps": 1,
+     "rx_gbps": 0.0,
+     "tx_pps": 1479101,
+     "tx_gbps": 1.254,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "read_us": {
+    "ens5": {
+     "n": 70,
+     "min": 214.297,
+     "p10": 237.402,
+     "median": 9783.668,
+     "p90": 23036.23,
+     "max": 63023.522
+    }
+   },
+   "cpu": {
+    "cpus": {
+     "cpu": {
+      "user": 12.1,
+      "nice": 0.0,
+      "system": 73.8,
+      "idle": 0.0,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 14.1,
+      "steal": 0.0
+     },
+     "cpu0": {
+      "user": 11.8,
+      "nice": 0.0,
+      "system": 70.9,
+      "idle": 0.0,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 17.3,
+      "steal": 0.0
+     },
+     "cpu1": {
+      "user": 12.4,
+      "nice": 0.0,
+      "system": 76.8,
+      "idle": 0.0,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 10.9,
+      "steal": 0.0
+     }
+    },
+    "procs": {
+     "conntrackd": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "natpair": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "iperf3": {
+      "cpu_pct": 197.7,
+      "user_pct": 23.7,
+      "system_pct": 174.0
+     }
+    },
+    "busy_cores": 2.0,
+    "softirq_cores": 0.281
+   },
+   "iperf": {
+    "files": 1,
+    "errors": [],
+    "sent_gbps": 0.773,
+    "received_gbps": 0.217,
+    "retransmits": 0
+   }
+  },
+  "i-02a551a1427aface7": {
+   "role": "receiver",
+   "interfaces": {
+    "ens5": {
+     "eni": "eni-00257a49cb061fe8c",
+     "ips": "10.50.0.114/24"
+    }
+   },
+   "kernel": "6.18.56-126.188.amzn2023.aarch64",
+   "steady": {
+    "ens5": {
+     "seconds": 55.0,
+     "rx_pps": 446001,
+     "rx_gbps": 0.378,
+     "tx_pps": 10,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "whole_run": {
+    "ens5": {
+     "seconds": 69.0,
+     "rx_pps": 382296,
+     "rx_gbps": 0.324,
+     "tx_pps": 10,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "tail_30s": {
+    "ens5": {
+     "seconds": 29.0,
+     "rx_pps": 623259,
+     "rx_gbps": 0.529,
+     "tx_pps": 9,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "read_us": {
+    "ens5": {
+     "n": 70,
+     "min": 211.51,
+     "p10": 221.661,
+     "median": 243.445,
+     "p90": 330.043,
+     "max": 667.005
+    }
+   },
+   "cpu": {
+    "cpus": {
+     "cpu": {
+      "user": 4.5,
+      "nice": 0.0,
+      "system": 5.8,
+      "idle": 79.7,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 9.9,
+      "steal": 0.0
+     },
+     "cpu0": {
+      "user": 1.7,
+      "nice": 0.0,
+      "system": 3.0,
+      "idle": 74.3,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 20.9,
+      "steal": 0.0
+     },
+     "cpu1": {
+      "user": 7.0,
+      "nice": 0.0,
+      "system": 7.3,
+      "idle": 81.2,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 4.5,
+      "steal": 0.0
+     },
+     "cpu2": {
+      "user": 5.1,
+      "nice": 0.0,
+      "system": 6.4,
+      "idle": 83.9,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 4.5,
+      "steal": 0.0
+     },
+     "cpu3": {
+      "user": 4.4,
+      "nice": 0.0,
+      "system": 6.7,
+      "idle": 79.3,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 9.5,
+      "steal": 0.0
+     }
+    },
+    "procs": {
+     "conntrackd": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "natpair": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "iperf3": {
+      "cpu_pct": 34.9,
+      "user_pct": 7.9,
+      "system_pct": 27.1
+     }
+    },
+    "busy_cores": 0.811,
+    "softirq_cores": 0.395
+   },
+   "receiver_saw_sources": [
+    "10.40.0.197"
+   ]
+  },
+  "i-0401802af292d83cc": {
+   "role": "generator",
+   "interfaces": {
+    "ens5": {
+     "eni": "eni-056d8bb49fe90de05",
+     "ips": "10.40.1.56/24"
+    }
+   },
+   "kernel": "6.18.56-126.188.amzn2023.aarch64",
+   "steady": {
+    "ens5": {
+     "seconds": 55.0,
+     "rx_pps": 1,
+     "rx_gbps": 0.0,
+     "tx_pps": 2,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "whole_run": {
+    "ens5": {
+     "seconds": 69.0,
+     "rx_pps": 1,
+     "rx_gbps": 0.0,
+     "tx_pps": 2,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "tail_30s": {
+    "ens5": {
+     "seconds": 29.0,
+     "rx_pps": 2,
+     "rx_gbps": 0.0,
+     "tx_pps": 2,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "read_us": {
+    "ens5": {
+     "n": 70,
+     "min": 207.617,
+     "p10": 216.152,
+     "median": 236.772,
+     "p90": 261.238,
+     "max": 337.778
+    }
+   },
+   "cpu": {
+    "cpus": {
+     "cpu": {
+      "user": 0.3,
+      "nice": 0.0,
+      "system": 0.6,
+      "idle": 99.0,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 0.0,
+      "steal": 0.0
+     },
+     "cpu0": {
+      "user": 0.3,
+      "nice": 0.0,
+      "system": 0.4,
+      "idle": 99.3,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 0.0,
+      "steal": 0.0
+     },
+     "cpu1": {
+      "user": 0.4,
+      "nice": 0.0,
+      "system": 0.9,
+      "idle": 98.8,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 0.0,
+      "steal": 0.0
+     }
+    },
+    "procs": {
+     "conntrackd": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "natpair": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     },
+     "iperf3": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     }
+    },
+    "busy_cores": 0.019,
+    "softirq_cores": 0.0
+   },
+   "iperf": {
+    "files": 1,
+    "errors": [
+     "iperf-steady-5201.json: unable to read from stream socket: Resource temporarily unavailable"
+    ],
+    "sent_gbps": 0.0,
+    "received_gbps": 0.0,
+    "retransmits": 0
+   }
+  },
+  "i-08a0cfbdd732f2de8": {
+   "role": "owner",
+   "interfaces": {
+    "ens5": {
+     "eni": "eni-0c8579e01d3af37ae",
+     "ips": "10.40.0.94/24"
+    },
+    "ens6": {
+     "eni": "eni-0e341a7adfbcd99f8",
+     "ips": "10.40.0.197/24"
+    }
+   },
+   "kernel": "6.18.56-126.188.amzn2023.aarch64",
+   "steady": {
+    "ens5": {
+     "seconds": 55.99,
+     "rx_pps": 21,
+     "rx_gbps": 0.0,
+     "tx_pps": 25,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0.05
+    },
+    "ens6 (shared)": {
+     "seconds": 47.52,
+     "rx_pps": 564131,
+     "rx_gbps": 0.478,
+     "tx_pps": 439130,
+     "tx_gbps": 0.372,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 18.82
+    }
+   },
+   "whole_run": {
+    "ens5": {
+     "seconds": 69.99,
+     "rx_pps": 20,
+     "rx_gbps": 0.0,
+     "tx_pps": 24,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0.05
+    },
+    "ens6 (shared)": {
+     "seconds": 55.52,
+     "rx_pps": 516143,
+     "rx_gbps": 0.438,
+     "tx_pps": 409160,
+     "tx_gbps": 0.347,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 18.82
+    }
+   },
+   "tail_30s": {
+    "ens5": {
+     "seconds": 29.99,
+     "rx_pps": 17,
+     "rx_gbps": 0.0,
+     "tx_pps": 19,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0.05
+    },
+    "ens6 (shared)": {
+     "seconds": 21.52,
+     "rx_pps": 945428,
+     "rx_gbps": 0.802,
+     "tx_pps": 868103,
+     "tx_gbps": 0.736,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "read_us": {
+    "ens5": {
+     "n": 6850,
+     "min": 173.473,
+     "p10": 193.226,
+     "median": 243.38,
+     "p90": 2579.62,
+     "max": 30764.774
+    },
+    "ens6 (shared)": {
+     "n": 3527,
+     "min": 174.592,
+     "p10": 194.994,
+     "median": 300.279,
+     "p90": 2267.256,
+     "max": 27226.14
+    }
+   },
+   "timeline": {
+    "ens5": [
+     {
+      "t": -5,
+      "rx_pps": 5,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -4,
+      "rx_pps": 18,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -3,
+      "rx_pps": 13,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -2,
+      "rx_pps": 6,
+      "tx_pps": 9,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -1,
+      "rx_pps": 13,
+      "tx_pps": 21,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 0,
+      "rx_pps": 14,
+      "tx_pps": 44,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 1,
+      "rx_pps": 17,
+      "tx_pps": 19,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 2,
+      "rx_pps": 16,
+      "tx_pps": 17,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 3,
+      "rx_pps": 19,
+      "tx_pps": 23,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 4,
+      "rx_pps": 45,
+      "tx_pps": 42,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 5,
+      "rx_pps": 7,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 6,
+      "rx_pps": 5,
+      "tx_pps": 5,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 7,
+      "rx_pps": 4,
+      "tx_pps": 6,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 8,
+      "rx_pps": 10,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 9,
+      "rx_pps": 28,
+      "tx_pps": 36,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 10,
+      "rx_pps": 10,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 11,
+      "rx_pps": 10,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 12,
+      "rx_pps": 11,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 13,
+      "rx_pps": 7,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 14,
+      "rx_pps": 11,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 15,
+      "rx_pps": 35,
+      "tx_pps": 44,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 16,
+      "rx_pps": 39,
+      "tx_pps": 46,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 17,
+      "rx_pps": 39,
+      "tx_pps": 47,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 18,
+      "rx_pps": 65,
+      "tx_pps": 108,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 19,
+      "rx_pps": 52,
+      "tx_pps": 66,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 20,
+      "rx_pps": 48,
+      "tx_pps": 60,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 21,
+      "rx_pps": 42,
+      "tx_pps": 51,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 22,
+      "rx_pps": 23,
+      "tx_pps": 28,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 23,
+      "rx_pps": 96,
+      "tx_pps": 105,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 24,
+      "rx_pps": 12,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 25,
+      "rx_pps": 12,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 26,
+      "rx_pps": 13,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 27,
+      "rx_pps": 11,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 28,
+      "rx_pps": 20,
+      "tx_pps": 23,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 29,
+      "rx_pps": 3,
+      "tx_pps": 33,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 30,
+      "rx_pps": 16,
+      "tx_pps": 22,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 31,
+      "rx_pps": 9,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 32,
+      "rx_pps": 16,
+      "tx_pps": 24,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 33,
+      "rx_pps": 5,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 34,
+      "rx_pps": 19,
+      "tx_pps": 21,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 35,
+      "rx_pps": 7,
+      "tx_pps": 10,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 36,
+      "rx_pps": 14,
+      "tx_pps": 19,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 37,
+      "rx_pps": 15,
+      "tx_pps": 20,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 38,
+      "rx_pps": 10,
+      "tx_pps": 11,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 39,
+      "rx_pps": 21,
+      "tx_pps": 24,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 40,
+      "rx_pps": 5,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 41,
+      "rx_pps": 14,
+      "tx_pps": 19,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 42,
+      "rx_pps": 6,
+      "tx_pps": 9,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 43,
+      "rx_pps": 15,
+      "tx_pps": 20,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 44,
+      "rx_pps": 17,
+      "tx_pps": 22,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 45,
+      "rx_pps": 35,
+      "tx_pps": 37,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 46,
+      "rx_pps": 15,
+      "tx_pps": 19,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 47,
+      "rx_pps": 19,
+      "tx_pps": 20,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 48,
+      "rx_pps": 29,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 49,
+      "rx_pps": 80,
+      "tx_pps": 35,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 50,
+      "rx_pps": 11,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 51,
+      "rx_pps": 10,
+      "tx_pps": 12,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 52,
+      "rx_pps": 27,
+      "tx_pps": 28,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 53,
+      "rx_pps": 8,
+      "tx_pps": 9,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 54,
+      "rx_pps": 8,
+      "tx_pps": 9,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 55,
+      "rx_pps": 31,
+      "tx_pps": 40,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 56,
+      "rx_pps": 29,
+      "tx_pps": 25,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 57,
+      "rx_pps": 8,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 58,
+      "rx_pps": 6,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 59,
+      "rx_pps": 15,
+      "tx_pps": 11,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 60,
+      "rx_pps": 45,
+      "tx_pps": 52,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 61,
+      "rx_pps": 25,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 62,
+      "rx_pps": 13,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 63,
+      "rx_pps": 24,
+      "tx_pps": 22,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     }
+    ],
+    "ens6 (shared)": [
+     {
+      "t": -5,
+      "rx_pps": 0,
+      "tx_pps": 1,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -4,
+      "rx_pps": 17,
+      "tx_pps": 24,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -3,
+      "rx_pps": 17,
+      "tx_pps": 23,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -2,
+      "rx_pps": 2,
+      "tx_pps": 3,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -1,
+      "rx_pps": 24,
+      "tx_pps": 31,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 0,
+      "rx_pps": 620116,
+      "tx_pps": 620113,
+      "rx_gbps": 0.526,
+      "tx_gbps": 0.526
+     },
+     {
+      "t": 1,
+      "rx_pps": 612325,
+      "tx_pps": 612329,
+      "rx_gbps": 0.519,
+      "tx_gbps": 0.519
+     },
+     {
+      "t": 2,
+      "rx_pps": 616251,
+      "tx_pps": 616238,
+      "rx_gbps": 0.523,
+      "tx_gbps": 0.523
+     },
+     {
+      "t": 3,
+      "rx_pps": 881038,
+      "tx_pps": 108260,
+      "rx_gbps": 0.747,
+      "tx_gbps": 0.092
+     },
+     {
+      "t": 23,
+      "rx_pps": 544784,
+      "tx_pps": 14,
+      "rx_gbps": 0.462,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 24,
+      "rx_pps": 1092367,
+      "tx_pps": 8,
+      "rx_gbps": 0.926,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 25,
+      "rx_pps": 942644,
+      "tx_pps": 4,
+      "rx_gbps": 0.799,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 26,
+      "rx_pps": 1080134,
+      "tx_pps": 420440,
+      "rx_gbps": 0.916,
+      "tx_gbps": 0.357
+     },
+     {
+      "t": 27,
+      "rx_pps": 863356,
+      "tx_pps": 863384,
+      "rx_gbps": 0.732,
+      "tx_gbps": 0.732
+     },
+     {
+      "t": 28,
+      "rx_pps": 791680,
+      "tx_pps": 791686,
+      "rx_gbps": 0.671,
+      "tx_gbps": 0.671
+     },
+     {
+      "t": 29,
+      "rx_pps": 948012,
+      "tx_pps": 948021,
+      "rx_gbps": 0.804,
+      "tx_gbps": 0.804
+     },
+     {
+      "t": 30,
+      "rx_pps": 829713,
+      "tx_pps": 829682,
+      "rx_gbps": 0.704,
+      "tx_gbps": 0.704
+     },
+     {
+      "t": 31,
+      "rx_pps": 827129,
+      "tx_pps": 827146,
+      "rx_gbps": 0.701,
+      "tx_gbps": 0.701
+     },
+     {
+      "t": 32,
+      "rx_pps": 1041360,
+      "tx_pps": 1041333,
+      "rx_gbps": 0.883,
+      "tx_gbps": 0.883
+     },
+     {
+      "t": 33,
+      "rx_pps": 828573,
+      "tx_pps": 828572,
+      "rx_gbps": 0.703,
+      "tx_gbps": 0.703
+     },
+     {
+      "t": 34,
+      "rx_pps": 1051286,
+      "tx_pps": 1051339,
+      "rx_gbps": 0.892,
+      "tx_gbps": 0.892
+     },
+     {
+      "t": 35,
+      "rx_pps": 1018830,
+      "tx_pps": 1018829,
+      "rx_gbps": 0.864,
+      "tx_gbps": 0.864
+     },
+     {
+      "t": 36,
+      "rx_pps": 876448,
+      "tx_pps": 876452,
+      "rx_gbps": 0.743,
+      "tx_gbps": 0.743
+     },
+     {
+      "t": 37,
+      "rx_pps": 840647,
+      "tx_pps": 840608,
+      "rx_gbps": 0.713,
+      "tx_gbps": 0.713
+     },
+     {
+      "t": 38,
+      "rx_pps": 992412,
+      "tx_pps": 992445,
+      "rx_gbps": 0.842,
+      "tx_gbps": 0.842
+     },
+     {
+      "t": 39,
+      "rx_pps": 901712,
+      "tx_pps": 901741,
+      "rx_gbps": 0.765,
+      "tx_gbps": 0.765
+     },
+     {
+      "t": 40,
+      "rx_pps": 959656,
+      "tx_pps": 959604,
+      "rx_gbps": 0.814,
+      "tx_gbps": 0.814
+     },
+     {
+      "t": 41,
+      "rx_pps": 790439,
+      "tx_pps": 790497,
+      "rx_gbps": 0.67,
+      "tx_gbps": 0.67
+     },
+     {
+      "t": 42,
+      "rx_pps": 787936,
+      "tx_pps": 787934,
+      "rx_gbps": 0.668,
+      "tx_gbps": 0.668
+     },
+     {
+      "t": 43,
+      "rx_pps": 796322,
+      "tx_pps": 796285,
+      "rx_gbps": 0.675,
+      "tx_gbps": 0.675
+     },
+     {
+      "t": 44,
+      "rx_pps": 1041548,
+      "tx_pps": 1041555,
+      "rx_gbps": 0.883,
+      "tx_gbps": 0.883
+     },
+     {
+      "t": 45,
+      "rx_pps": 1021953,
+      "tx_pps": 1022003,
+      "rx_gbps": 0.867,
+      "tx_gbps": 0.867
+     },
+     {
+      "t": 46,
+      "rx_pps": 1052143,
+      "tx_pps": 1052119,
+      "rx_gbps": 0.892,
+      "tx_gbps": 0.892
+     },
+     {
+      "t": 47,
+      "rx_pps": 1053958,
+      "tx_pps": 1054020,
+      "rx_gbps": 0.894,
+      "tx_gbps": 0.894
+     },
+     {
+      "t": 48,
+      "rx_pps": 813831,
+      "tx_pps": 813814,
+      "rx_gbps": 0.69,
+      "tx_gbps": 0.69
+     },
+     {
+      "t": 49,
+      "rx_pps": 1128091,
+      "tx_pps": 207064,
+      "rx_gbps": 0.957,
+      "tx_gbps": 0.176
+     }
+    ]
+   },
+   "counter_changes": {
+    "ens5": {},
+    "ens6 (shared)": {}
+   },
+   "load_edges": {
+    "ens5": 489,
+    "ens6 (shared)": 3
+   },
+   "edge_delays": {
+    "ens5": {},
+    "ens6 (shared)": {}
+   },
+   "steady_total": {
+    "rx_pps": 564152,
+    "tx_pps": 439155,
+    "rx_plus_tx_pps": 1003307
+   },
+   "cpu": {
+    "cpus": {
+     "cpu": {
+      "user": 1.1,
+      "nice": 0.0,
+      "system": 1.6,
+      "idle": 60.0,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 37.3,
+      "steal": 0.0
+     },
+     "cpu0": {
+      "user": 0.9,
+      "nice": 0.0,
+      "system": 1.4,
+      "idle": 54.7,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 43.0,
+      "steal": 0.0
+     },
+     "cpu1": {
+      "user": 1.3,
+      "nice": 0.0,
+      "system": 1.8,
+      "idle": 65.2,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 31.6,
+      "steal": 0.0
+     }
+    },
+    "procs": {
+     "conntrackd": {
+      "cpu_pct": 0.9,
+      "user_pct": 0.0,
+      "system_pct": 0.9
+     },
+     "natpair": {
+      "cpu_pct": 2.9,
+      "user_pct": 0.3,
+      "system_pct": 2.6
+     },
+     "iperf3": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     }
+    },
+    "busy_cores": 0.799,
+    "softirq_cores": 0.746
+   },
+   "cpu_ns_per_forwarded_packet": 1416,
+   "softirq_ns_per_forwarded_packet": 1322,
+   "journal": {
+    "counts": {
+     "lease_store_unreachable": 0,
+     "conntrackd_not_answering": 0,
+     "copied_connections_incomplete": 1,
+     "forwarding_open": 1,
+     "ownership_acquired": 1,
+     "stepped_down": 2,
+     "dns_or_probe_timeout": 3,
+     "conntrackd_resync": 7,
+     "conntrackd_netlink_loss": 0
+    },
+    "examples": {
+     "conntrackd_resync": [
+      "2026-11-11T23:46:32.194477+0000 ip-10-40-0-94.us-west-2.compute.internal conntrackd[2155]: [Wed Nov 11 23:46:32 2026] (pid=2155) [notice] resync requested",
+      "2026-11-11T23:46:39.878279+0000 ip-10-40-0-94.us-west-2.compute.internal conntrackd[2155]: [Wed Nov 11 23:46:39 2026] (pid=2155) [notice] resync requested by other node",
+      "2026-11-11T23:46:46.979255+0000 ip-10-40-0-94.us-west-2.compute.internal conntrackd[2155]: [Wed Nov 11 23:46:46 2026] (pid=2155) [notice] resync requested by other node"
+     ],
+     "stepped_down": [
+      "2026-11-11T23:46:32.195470+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:32.195442902Z\",\"level\":\"WARN\",\"msg\":\"ownership session ended\",\"reason\":\"stepped down after corroborated path failure\"}",
+      "2026-11-11T23:47:18.258469+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:47:18.258356047Z\",\"level\":\"WARN\",\"msg\":\"ownership session ended\",\"reason\":\"stepped down after corroborated path failure\"}"
+     ],
+     "ownership_acquired": [
+      "2026-11-11T23:46:47.222737+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:47.222701344Z\",\"level\":\"INFO\",\"msg\":\"ownership acquired\",\"epoch\":37,\"copied_state_ready\":true,\"path_proven\":true}"
+     ],
+     "copied_connections_incomplete": [
+      "2026-11-11T23:46:49.097806+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:49.097751098Z\",\"level\":\"WARN\",\"msg\":\"copied connections are incomplete, requesting a full copy from the peer\",\"peer_oldest\":16,\"peer_oldest_copied\":0}"
+     ],
+     "dns_or_probe_timeout": [
+      "2026-11-11T23:46:52.906604+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:52.906540777Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to connect to probe receiver 44.238.153.1",
+      "2026-11-11T23:46:54.108106+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:54.108060387Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to connect to probe receiver 32.188.102.2",
+      "2026-11-11T23:46:55.320197+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:55.320112699Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to send probe upload: write tcp4 198.18.0"
+     ],
+     "forwarding_open": [
+      "2026-11-11T23:46:55.599404+0000 ip-10-40-0-94.us-west-2.compute.internal natpair[2156]: {\"time\":\"2026-11-11T23:46:55.598086536Z\",\"level\":\"INFO\",\"msg\":\"forwarding open\",\"takeover\":8375351150}"
+     ]
+    }
+   }
+  },
+  "i-08f467968cf73f466": {
+   "role": "standby",
+   "interfaces": {
+    "ens5": {
+     "eni": "eni-00a81074a9ca91a74",
+     "ips": "10.40.0.144/24"
+    },
+    "ens6": {
+     "eni": "eni-0e341a7adfbcd99f8",
+     "ips": "10.40.0.197/24"
+    }
+   },
+   "kernel": "6.18.56-126.188.amzn2023.aarch64",
+   "steady": {
+    "ens5": {
+     "seconds": 55.99,
+     "rx_pps": 23,
+     "rx_gbps": 0.0,
+     "tx_pps": 27,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    },
+    "ens6 (shared)": {
+     "seconds": 50.89,
+     "rx_pps": 155973,
+     "rx_gbps": 0.132,
+     "tx_pps": 86355,
+     "tx_gbps": 0.073,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 39.29
+    }
+   },
+   "whole_run": {
+    "ens5": {
+     "seconds": 69.99,
+     "rx_pps": 22,
+     "rx_gbps": 0.0,
+     "tx_pps": 26,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    },
+    "ens6 (shared)": {
+     "seconds": 56.89,
+     "rx_pps": 153102,
+     "rx_gbps": 0.13,
+     "tx_pps": 77249,
+     "tx_gbps": 0.066,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 39.29
+    }
+   },
+   "tail_30s": {
+    "ens5": {
+     "seconds": 29.99,
+     "rx_pps": 23,
+     "rx_gbps": 0.0,
+     "tx_pps": 30,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    },
+    "ens6 (shared)": {
+     "seconds": 0.56,
+     "rx_pps": 21528,
+     "rx_gbps": 0.018,
+     "tx_pps": 2,
+     "tx_gbps": 0.0,
+     "bw_in_allowance_exceeded": 0,
+     "bw_in_allowance_exceeded_per_s": 0,
+     "bw_out_allowance_exceeded": 0,
+     "bw_out_allowance_exceeded_per_s": 0,
+     "pps_allowance_exceeded": 0,
+     "pps_allowance_exceeded_per_s": 0,
+     "conntrack_allowance_exceeded": 0,
+     "conntrack_allowance_exceeded_per_s": 0,
+     "linklocal_allowance_exceeded": 0,
+     "linklocal_allowance_exceeded_per_s": 0,
+     "missing_s": 0
+    }
+   },
+   "read_us": {
+    "ens5": {
+     "n": 6997,
+     "min": 175.037,
+     "p10": 195.334,
+     "median": 228.967,
+     "p90": 841.829,
+     "max": 11951.848
+    },
+    "ens6 (shared)": {
+     "n": 1759,
+     "min": 173.974,
+     "p10": 192.991,
+     "median": 205.347,
+     "p90": 1061.252,
+     "max": 18955.533
+    }
+   },
+   "timeline": {
+    "ens5": [
+     {
+      "t": -5,
+      "rx_pps": 11,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -4,
+      "rx_pps": 35,
+      "tx_pps": 41,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -3,
+      "rx_pps": 12,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -2,
+      "rx_pps": 10,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": -1,
+      "rx_pps": 15,
+      "tx_pps": 13,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 0,
+      "rx_pps": 13,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 1,
+      "rx_pps": 35,
+      "tx_pps": 45,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 2,
+      "rx_pps": 38,
+      "tx_pps": 49,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 3,
+      "rx_pps": 41,
+      "tx_pps": 47,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 4,
+      "rx_pps": 44,
+      "tx_pps": 56,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 5,
+      "rx_pps": 23,
+      "tx_pps": 26,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 6,
+      "rx_pps": 14,
+      "tx_pps": 17,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 7,
+      "rx_pps": 75,
+      "tx_pps": 84,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 8,
+      "rx_pps": 16,
+      "tx_pps": 19,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 9,
+      "rx_pps": 16,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 10,
+      "rx_pps": 34,
+      "tx_pps": 40,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 11,
+      "rx_pps": 15,
+      "tx_pps": 20,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 12,
+      "rx_pps": 18,
+      "tx_pps": 24,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 13,
+      "rx_pps": 5,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 14,
+      "rx_pps": 12,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 15,
+      "rx_pps": 17,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 16,
+      "rx_pps": 17,
+      "tx_pps": 18,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 17,
+      "rx_pps": 21,
+      "tx_pps": 23,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 18,
+      "rx_pps": 41,
+      "tx_pps": 11,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 19,
+      "rx_pps": 39,
+      "tx_pps": 45,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 20,
+      "rx_pps": 11,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 21,
+      "rx_pps": 10,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 22,
+      "rx_pps": 6,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 23,
+      "rx_pps": 30,
+      "tx_pps": 38,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 24,
+      "rx_pps": 10,
+      "tx_pps": 10,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 25,
+      "rx_pps": 8,
+      "tx_pps": 7,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 26,
+      "rx_pps": 13,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 27,
+      "rx_pps": 7,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 28,
+      "rx_pps": 32,
+      "tx_pps": 36,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 29,
+      "rx_pps": 12,
+      "tx_pps": 11,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 30,
+      "rx_pps": 21,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 31,
+      "rx_pps": 10,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 32,
+      "rx_pps": 15,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 33,
+      "rx_pps": 10,
+      "tx_pps": 13,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 34,
+      "rx_pps": 34,
+      "tx_pps": 44,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 35,
+      "rx_pps": 10,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 36,
+      "rx_pps": 15,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 37,
+      "rx_pps": 15,
+      "tx_pps": 17,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 38,
+      "rx_pps": 10,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 39,
+      "rx_pps": 37,
+      "tx_pps": 45,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 40,
+      "rx_pps": 10,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 41,
+      "rx_pps": 14,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 42,
+      "rx_pps": 11,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 43,
+      "rx_pps": 12,
+      "tx_pps": 14,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 44,
+      "rx_pps": 13,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 45,
+      "rx_pps": 33,
+      "tx_pps": 43,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 46,
+      "rx_pps": 10,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 47,
+      "rx_pps": 39,
+      "tx_pps": 46,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 48,
+      "rx_pps": 40,
+      "tx_pps": 46,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 49,
+      "rx_pps": 28,
+      "tx_pps": 82,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 50,
+      "rx_pps": 43,
+      "tx_pps": 55,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 51,
+      "rx_pps": 24,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 52,
+      "rx_pps": 26,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 53,
+      "rx_pps": 22,
+      "tx_pps": 27,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 54,
+      "rx_pps": 27,
+      "tx_pps": 31,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 55,
+      "rx_pps": 29,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 56,
+      "rx_pps": 36,
+      "tx_pps": 50,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 57,
+      "rx_pps": 25,
+      "tx_pps": 27,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 58,
+      "rx_pps": 71,
+      "tx_pps": 83,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 59,
+      "rx_pps": 11,
+      "tx_pps": 15,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 60,
+      "rx_pps": 17,
+      "tx_pps": 16,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 61,
+      "rx_pps": 17,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 62,
+      "rx_pps": 7,
+      "tx_pps": 12,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 63,
+      "rx_pps": 15,
+      "tx_pps": 22,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 64,
+      "rx_pps": 5,
+      "tx_pps": 8,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     }
+    ],
+    "ens6 (shared)": [
+     {
+      "t": 8,
+      "rx_pps": 189874,
+      "tx_pps": 14,
+      "rx_gbps": 0.161,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 9,
+      "rx_pps": 968169,
+      "tx_pps": 3,
+      "rx_gbps": 0.821,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 10,
+      "rx_pps": 960911,
+      "tx_pps": 8,
+      "rx_gbps": 0.815,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 11,
+      "rx_pps": 854146,
+      "tx_pps": 519211,
+      "rx_gbps": 0.724,
+      "tx_gbps": 0.44
+     },
+     {
+      "t": 12,
+      "rx_pps": 762863,
+      "tx_pps": 762839,
+      "rx_gbps": 0.647,
+      "tx_gbps": 0.647
+     },
+     {
+      "t": 13,
+      "rx_pps": 631735,
+      "tx_pps": 631770,
+      "rx_gbps": 0.536,
+      "tx_gbps": 0.536
+     },
+     {
+      "t": 14,
+      "rx_pps": 626711,
+      "tx_pps": 626726,
+      "rx_gbps": 0.531,
+      "tx_gbps": 0.531
+     },
+     {
+      "t": 15,
+      "rx_pps": 626512,
+      "tx_pps": 626468,
+      "rx_gbps": 0.531,
+      "tx_gbps": 0.531
+     },
+     {
+      "t": 16,
+      "rx_pps": 631050,
+      "tx_pps": 631087,
+      "rx_gbps": 0.535,
+      "tx_gbps": 0.535
+     },
+     {
+      "t": 17,
+      "rx_pps": 642859,
+      "tx_pps": 595979,
+      "rx_gbps": 0.545,
+      "tx_gbps": 0.505
+     },
+     {
+      "t": 18,
+      "rx_pps": 925241,
+      "tx_pps": 6,
+      "rx_gbps": 0.785,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 58,
+      "rx_pps": 34864,
+      "tx_pps": 2,
+      "rx_gbps": 0.03,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 59,
+      "rx_pps": 758506,
+      "tx_pps": 13,
+      "rx_gbps": 0.643,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 60,
+      "rx_pps": 5,
+      "tx_pps": 6,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 61,
+      "rx_pps": 49,
+      "tx_pps": 60,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 62,
+      "rx_pps": 0,
+      "tx_pps": 1,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 63,
+      "rx_pps": 21,
+      "tx_pps": 30,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     },
+     {
+      "t": 64,
+      "rx_pps": 0,
+      "tx_pps": 1,
+      "rx_gbps": 0.0,
+      "tx_gbps": 0.0
+     }
+    ]
+   },
+   "counter_changes": {
+    "ens5": {},
+    "ens6 (shared)": {}
+   },
+   "load_edges": {
+    "ens5": 462,
+    "ens6 (shared)": 4
+   },
+   "edge_delays": {
+    "ens5": {},
+    "ens6 (shared)": {}
+   },
+   "steady_total": {
+    "rx_pps": 155996,
+    "tx_pps": 86382,
+    "rx_plus_tx_pps": 242378
+   },
+   "cpu": {
+    "cpus": {
+     "cpu": {
+      "user": 1.6,
+      "nice": 0.0,
+      "system": 2.7,
+      "idle": 85.5,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 10.2,
+      "steal": 0.0
+     },
+     "cpu0": {
+      "user": 1.4,
+      "nice": 0.0,
+      "system": 2.8,
+      "idle": 82.9,
+      "iowait": 0.1,
+      "irq": 0.0,
+      "softirq": 12.8,
+      "steal": 0.0
+     },
+     "cpu1": {
+      "user": 1.7,
+      "nice": 0.0,
+      "system": 2.6,
+      "idle": 88.1,
+      "iowait": 0.0,
+      "irq": 0.0,
+      "softirq": 7.5,
+      "steal": 0.0
+     }
+    },
+    "procs": {
+     "conntrackd": {
+      "cpu_pct": 0.5,
+      "user_pct": 0.0,
+      "system_pct": 0.5
+     },
+     "natpair": {
+      "cpu_pct": 0.7,
+      "user_pct": 0.3,
+      "system_pct": 0.4
+     },
+     "iperf3": {
+      "cpu_pct": 0.0,
+      "user_pct": 0.0,
+      "system_pct": 0.0
+     }
+    },
+    "busy_cores": 0.289,
+    "softirq_cores": 0.203
+   },
+   "cpu_ns_per_forwarded_packet": 1853,
+   "softirq_ns_per_forwarded_packet": 1301,
+   "journal": {
+    "counts": {
+     "lease_store_unreachable": 0,
+     "conntrackd_not_answering": 0,
+     "copied_connections_incomplete": 2,
+     "forwarding_open": 2,
+     "ownership_acquired": 2,
+     "stepped_down": 1,
+     "dns_or_probe_timeout": 6,
+     "conntrackd_resync": 8,
+     "conntrackd_netlink_loss": 0
+    },
+    "examples": {
+     "conntrackd_resync": [
+      "2026-11-11T23:46:32.196615+0000 ip-10-40-0-144.us-west-2.compute.internal conntrackd[2136]: [Wed Nov 11 23:46:32 2026] (pid=2136) [notice] resync requested by other node",
+      "2026-11-11T23:46:32.595002+0000 ip-10-40-0-144.us-west-2.compute.internal conntrackd[2136]: [Wed Nov 11 23:46:32 2026] (pid=2136) [notice] resync with master conntrack table",
+      "2026-11-11T23:46:39.878193+0000 ip-10-40-0-144.us-west-2.compute.internal conntrackd[2136]: [Wed Nov 11 23:46:39 2026] (pid=2136) [notice] resync requested"
+     ],
+     "ownership_acquired": [
+      "2026-11-11T23:46:32.478055+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:32.477947617Z\",\"level\":\"INFO\",\"msg\":\"ownership acquired\",\"epoch\":36,\"copied_state_ready\":true,\"path_proven\":true}",
+      "2026-11-11T23:47:18.655519+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:47:18.65548642Z\",\"level\":\"INFO\",\"msg\":\"ownership acquired\",\"epoch\":38,\"copied_state_ready\":true,\"path_proven\":true}"
+     ],
+     "dns_or_probe_timeout": [
+      "2026-11-11T23:46:37.712588+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:37.712553157Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to connect to probe receiver 32.188.102.",
+      "2026-11-11T23:46:38.916697+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:38.916641487Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to connect to probe receiver 54.200.172.",
+      "2026-11-11T23:46:40.117938+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:40.117889568Z\",\"level\":\"WARN\",\"msg\":\"shared Elastic IP not working yet, trying again\",\"err\":\"upload through the shared Elastic IP failed: failed to connect to probe receiver 44.238.153."
+     ],
+     "copied_connections_incomplete": [
+      "2026-11-11T23:46:39.876858+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:39.876793701Z\",\"level\":\"WARN\",\"msg\":\"copied connections are incomplete, requesting a full copy from the peer\",\"peer_oldest\":16,\"peer_oldest_copied\":0}",
+      "2026-11-11T23:47:25.869503+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:47:25.86945388Z\",\"level\":\"WARN\",\"msg\":\"copied connections are incomplete, requesting a full copy from the peer\",\"peer_oldest\":16,\"peer_oldest_copied\":0}"
+     ],
+     "forwarding_open": [
+      "2026-11-11T23:46:40.357028+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:40.356954414Z\",\"level\":\"INFO\",\"msg\":\"forwarding open\",\"takeover\":7878974486}",
+      "2026-11-11T23:47:30.672450+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:47:30.672422331Z\",\"level\":\"INFO\",\"msg\":\"forwarding open\",\"takeover\":12016905143}"
+     ],
+     "stepped_down": [
+      "2026-11-11T23:46:46.978794+0000 ip-10-40-0-144.us-west-2.compute.internal natpair[2137]: {\"time\":\"2026-11-11T23:46:46.978755007Z\",\"level\":\"WARN\",\"msg\":\"ownership session ended\",\"reason\":\"stepped down after corroborated path failure\"}"
+     ]
+    }
+   }
+  }
+ },
+ "iperf_total": {
+  "sent_gbps": 0.773,
+  "received_gbps": 0.217,
+  "retransmits": 0,
+  "errors": [
+   "iperf-steady-5201.json: unable to read from stream socket: Resource temporarily unavailable"
+  ]
+ },
+ "sources_ok": true
+}
