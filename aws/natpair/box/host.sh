@@ -46,10 +46,35 @@ list_interfaces > interfaces-start.txt
 # Fetched every run, so a rebuilt enapoll reaches every host.
 aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/enapoll" "$base/enapoll" && chmod +x "$base/enapoll"
 
+if [[ $role == nat ]]; then
+  # BPF run time per program (pacing's packet programs), counted only while kernel.bpf_stats_enabled is 1.
+  command -v bpftool > /dev/null || dnf install -y -q bpftool > /dev/null 2>&1
+  sysctl -qw kernel.bpf_stats_enabled=1
+fi
+if [[ $role == gen && $MODE == churn ]]; then
+  aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/churn" "$base/churn" && chmod +x "$base/churn"
+fi
+
 sleep_until "$START"
 "$base/enapoll" -i auto -interval "$INTERVAL" -duration "${SAMPLE_SECONDS}s" -out enapoll.csv \
   -cpu cpu.csv -procs conntrackd,natpair,iperf3 2> enapoll.err &
 sampler=$!
+if [[ $role == nat ]]; then
+  bpftool -j prog show > bpf-start.json 2> /dev/null
+  # Connection table size and the kernel's conntrack drops, once a second, for as long as enapoll samples, so a run
+  # stopped early ends here too.
+  (
+    echo "t,count,drop,early_drop,insert_failed,error,search_restart"
+    while kill -0 "$sampler" 2> /dev/null; do
+      stats=$(conntrack -S 2> /dev/null | tr ' ' '\n' | awk -F= '
+        $1 == "drop" { d += $2 } $1 == "early_drop" { e += $2 } $1 == "insert_failed" { i += $2 }
+        $1 == "error" { r += $2 } $1 == "search_restart" { s += $2 }
+        END { printf "%d,%d,%d,%d,%d", d, e, i, r, s }')
+      echo "$(date +%s.%N),$(cat /proc/sys/net/netfilter/nf_conntrack_count),$stats"
+      sleep 1
+    done
+  ) > conntrack.csv &
+fi
 
 # One iperf3 client process per receiver port, PROCS per generator, each with STREAMS flows.
 run_clients() {
@@ -71,7 +96,46 @@ run_clients() {
   wait "${pids[@]}"
 }
 
-if [[ $role == gen && $MODE != none ]]; then
+# Fairness: one heavy worker and four light ones, each from its own address. Generator 0 runs the heavy worker
+# from its primary address (32 flows, unlimited) and a light one from its second. Generator 1 runs light ones from
+# three addresses. A light worker is iperf3 with 2 flows at LIGHT_RATE each, and pings the receiver from its
+# address 10 times a second.
+run_fair() {
+  local addrs pids=() k ip port
+  read -r -a addrs <<< "$ADDRS"
+  if [[ $GEN_INDEX == 0 ]]; then
+    iperf3 -c "$RECEIVER_IP" -p 5201 -B "${addrs[0]}" -t "$DURATION" -P 32 -J > "iperf-heavy-${addrs[0]}.json" 2>&1 &
+    pids+=($!)
+    light_ips=("${addrs[1]}")
+  else
+    light_ips=("${addrs[0]}" "${addrs[1]}" "${addrs[2]}")
+  fi
+  k=0
+  for ip in "${light_ips[@]}"; do
+    port=$((5210 + GEN_INDEX * 4 + k))
+    iperf3 -c "$RECEIVER_IP" -p "$port" -B "$ip" -t "$DURATION" -P 2 -b "$LIGHT_RATE" -J > "iperf-light-$ip.json" 2>&1 &
+    pids+=($!)
+    ping -D -I "$ip" -i 0.1 -w "$DURATION" "$RECEIVER_IP" > "ping-light-$ip.txt" 2>&1 &
+    pids+=($!)
+    k=$((k + 1))
+  done
+  wait "${pids[@]}"
+}
+
+# Churn: CHURN_RATE new connections a second in total, half from each generator, each sending CHURN_SIZE bytes.
+run_churn() {
+  ulimit -n 1048576
+  "$base/churn" -target "$RECEIVER_IP" -ports 6000-6063 -rate "$((CHURN_RATE / GENERATORS_COUNT))" \
+    -duration "${DURATION}s" -size "${CHURN_SIZE:-4096}" -out churn.json 2> churn.err
+}
+
+if [[ $role == gen && $MODE == fair ]]; then
+  sleep_until "$LOAD_AT"
+  run_fair
+elif [[ $role == gen && $MODE == churn ]]; then
+  sleep_until "$LOAD_AT"
+  run_churn
+elif [[ $role == gen && $MODE != none ]]; then
   if [[ $PING == 1 ]]; then
     # 100 probes a second for the whole load. A gap in replies is a pause in forwarding.
     timeout "$((SAMPLE_SECONDS - PRE))" ping -D -O -i 0.01 -W 1 "$RECEIVER_IP" > ping.txt 2>&1 &
@@ -99,6 +163,15 @@ fi
 
 wait "$sampler"
 gzip -f enapoll.csv
+if [[ $role == nat ]]; then
+  bpftool -j prog show > bpf-end.json 2> /dev/null
+  # Which CPU each network queue's interrupt goes to. natpair spreads them, including after a takeover.
+  for irq in $(grep -E 'ens[0-9]+-Tx-Rx' /proc/interrupts | cut -d: -f1); do
+    echo "$(grep "^ *$irq:" /proc/interrupts | awk '{print $NF}') $(cat /proc/irq/$irq/effective_affinity_list)"
+  done > irq.txt
+  systemctl is-active irqbalance > irqbalance.txt 2>&1
+  dmesg 2> /dev/null | grep -c 'table full' > conntrack-table-full.txt
+fi
 list_interfaces > interfaces-end.txt
 if systemctl cat natpair > /dev/null 2>&1; then
   journalctl -u natpair -u conntrackd --since "@$START" -o short-iso-precise --no-pager > journal.txt

@@ -34,6 +34,13 @@ JOURNAL_PATTERNS = {
     "dns_or_probe_timeout": r"failed to resolve probe receiver|shared Elastic IP not working yet",
     "conntrackd_resync": r"conntrackd.*resync",
     "conntrackd_netlink_loss": r"(?i)conntrackd.*(netlink|overrun|ENOBUFS|no buffer space|lost)",
+    "pacing_cut_allowance": r"pacing cut its cap",
+    "pacing_cut_cpu": r"forwarding CPU is nearly full",
+    "pacing_failed": r"failed to load pacing|failed to pace",
+    "pacing_off": r"pacing off|pacing-off|pacing turned off|pacing is off",
+    "conntrack_nearly_full": r"connection table is nearly full",
+    "counter_read_errors": r"failed to read allowance counters",
+    "kernel_table_full": r"nf_conntrack: table full",
 }
 
 
@@ -351,6 +358,123 @@ def journal_summary(host_dir):
     return {"counts": counts, "examples": {k: v[:3] for k, v in examples.items()}}
 
 
+def pacing_status(host_dir):
+    """The last `pacing status` line natpair logged in the run, as a dict."""
+    path = os.path.join(host_dir, "journal.txt")
+    if not os.path.exists(path):
+        return None
+    last = None
+    count = 0
+    for line in open(path, errors="replace"):
+        if '"pacing status"' in line:
+            try:
+                last = json.loads(line[line.index("{"):])
+                count += 1
+            except ValueError:
+                pass
+    if last is None:
+        return None
+    last = {k: v for k, v in last.items() if k not in ("time", "level", "msg")}
+    last["lines"] = count
+    return last
+
+
+def bpf_stats(host_dir):
+    """Run time per invocation of each BPF program that ran during the run, from bpftool before and after."""
+    a, b = os.path.join(host_dir, "bpf-start.json"), os.path.join(host_dir, "bpf-end.json")
+    if not (os.path.exists(a) and os.path.exists(b)):
+        return None
+    try:
+        before = {p["id"]: p for p in json.load(open(a))}
+        after = json.load(open(b))
+    except ValueError:
+        return None
+    out = {}
+    for p in after:
+        old = before.get(p["id"], {})
+        runs = p.get("run_cnt", 0) - old.get("run_cnt", 0)
+        if runs <= 0:
+            continue
+        ns = p.get("run_time_ns", 0) - old.get("run_time_ns", 0)
+        out["%s:%s" % (p.get("type"), p.get("name", p["id"]))] = {"runs": runs, "ns_per_run": round(ns / runs, 1)}
+    return out
+
+
+def conntrack_stats(host_dir, start, end):
+    path = os.path.join(host_dir, "conntrack.csv")
+    if not os.path.exists(path):
+        return None
+    rows = [r for r in csv.DictReader(open(path)) if r.get("search_restart") not in (None, "")]
+    rows = [r for r in rows if start <= float(r["t"]) <= end] or rows
+    if not rows:
+        return None
+    out = {"max_count": max(int(r["count"]) for r in rows), "median_count": int(statistics.median(int(r["count"]) for r in rows))}
+    for k in ("drop", "early_drop", "insert_failed", "error"):
+        out[k] = int(rows[-1][k]) - int(rows[0][k])
+    full = os.path.join(host_dir, "conntrack-table-full.txt")
+    if os.path.exists(full):
+        out["dmesg_table_full_lines"] = int(open(full).read().strip() or 0)
+    return out
+
+
+def irq_layout(host_dir):
+    path = os.path.join(host_dir, "irq.txt")
+    if not os.path.exists(path):
+        return None
+    out = {line.split()[0]: line.split()[1] for line in open(path) if len(line.split()) == 2}
+    ib = os.path.join(host_dir, "irqbalance.txt")
+    if os.path.exists(ib):
+        out["irqbalance"] = open(ib).read().strip()
+    return out
+
+
+def fair_summary(host_dir):
+    """Per worker address: throughput, retransmits and TCP round trip from iperf3, and ping round trips."""
+    out = {}
+    for path in glob.glob(os.path.join(host_dir, "iperf-heavy-*.json")) + glob.glob(os.path.join(host_dir, "iperf-light-*.json")):
+        kind, ip = os.path.basename(path)[6:-5].split("-", 1)
+        w = out.setdefault(ip, {"kind": kind})
+        try:
+            data = json.load(open(path))
+        except ValueError:
+            w["error"] = "not JSON"
+            continue
+        if data.get("error"):
+            w["error"] = data["error"]
+        end = data.get("end", {})
+        if "sum_received" in end:
+            w["gbps"] = round(end["sum_received"]["bits_per_second"] / 1e9, 3)
+            w["retransmits"] = end["sum_sent"].get("retransmits", 0)
+        rtts = [st["sender"].get("mean_rtt") for st in end.get("streams", []) if st.get("sender", {}).get("mean_rtt")]
+        if rtts:
+            w["tcp_mean_rtt_ms"] = round(statistics.mean(rtts) / 1000, 3)
+    for path in glob.glob(os.path.join(host_dir, "ping-light-*.txt")):
+        ip = os.path.basename(path)[11:-4]
+        times, sent = [], 0
+        for line in open(path):
+            m = re.search(r"icmp_seq=\d+ .*time=([\d.]+) ms", line)
+            if m:
+                times.append(float(m.group(1)))
+            m = re.search(r"(\d+) packets transmitted", line)
+            if m:
+                sent = int(m.group(1))
+        w = out.setdefault(ip, {"kind": "light"})
+        w["ping_ms"] = summarize(times)
+        if sent:
+            w["ping_loss_pct"] = round(100.0 * (1 - len(times) / sent), 2)
+    return out or None
+
+
+def churn_summary(host_dir):
+    path = os.path.join(host_dir, "churn.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        return json.load(open(path))
+    except ValueError:
+        return {"error": "not JSON"}
+
+
 def peers(host_dir):
     path = os.path.join(host_dir, "peers.txt")
     if not os.path.exists(path):
@@ -426,6 +550,15 @@ def analyze(run_dir):
             if rx > 1000:
                 host["cpu_ns_per_forwarded_packet"] = round(host["cpu"]["busy_cores"] * 1e9 / rx)
                 host["softirq_ns_per_forwarded_packet"] = round(host["cpu"]["softirq_cores"] * 1e9 / rx)
+        if host["cpu"] and host["cpu"]["cpus"]:
+            per_cpu = [100 - v["idle"] - v["iowait"] for k, v in host["cpu"]["cpus"].items() if k != "cpu"]
+            host["cpu"]["busiest_cpu_pct"] = round(max(per_cpu), 1) if per_cpu else None
+        host["pacing_status"] = pacing_status(host_dir)
+        host["bpf"] = bpf_stats(host_dir)
+        host["conntrack"] = conntrack_stats(host_dir, *steady)
+        host["irq"] = irq_layout(host_dir)
+        host["fair"] = fair_summary(host_dir)
+        host["churn"] = churn_summary(host_dir)
         host["iperf"] = iperf_summary(host_dir)
         host["ping"] = ping_summary(host_dir, load_at, handover_at)
         host["journal"] = journal_summary(host_dir)

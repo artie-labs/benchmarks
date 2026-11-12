@@ -73,12 +73,20 @@ locals {
   }
 }
 
+locals {
+  # Generator n is 10.40.1.(20 + 10n) with three more addresses after it, so the fairness runs have six distinct
+  # worker addresses. natpair paces each source address as its own worker.
+  generator_ips = [for n in range(var.generator_count) : [for k in range(4) : cidrhost(local.worker_cidr, 20 + 10 * n + k)]]
+}
+
 resource "aws_instance" "generator" {
   count = var.generator_count
 
   ami                                  = data.aws_ami.al2023_arm64.id
   instance_type                        = var.generator_instance_type
   subnet_id                            = aws_subnet.worker.id
+  private_ip                           = local.generator_ips[count.index][0]
+  secondary_private_ips                = slice(local.generator_ips[count.index], 1, 4)
   vpc_security_group_ids               = [aws_security_group.generator.id]
   iam_instance_profile                 = aws_iam_instance_profile.box.name
   instance_initiated_shutdown_behavior = "stop"
@@ -135,6 +143,8 @@ resource "aws_s3_object" "bench_env" {
   content = join("\n", [
     "GENERATORS='${join(" ", aws_instance.generator[*].id)}'",
     "GENERATOR_IPS='${join(" ", aws_instance.generator[*].private_ip)}'",
+    # Each generator's four addresses, primary first, as GEN_ADDRS_<n>.
+    join("\n", [for n, ips in local.generator_ips : "GEN_ADDRS_${n}='${join(" ", ips)}'"]),
     "NAT_A=${module.natpair.nat_instance_ids["a"]}",
     "NAT_B=${module.natpair.nat_instance_ids["b"]}",
     "SHARED_ENI=${module.natpair.shared_eni_id}",

@@ -72,6 +72,50 @@ def owner_metrics(s, window):
     for k in ("lease_store_unreachable", "stepped_down", "ownership_acquired", "conntrackd_netlink_loss"):
         if journal.get(k):
             m["journal_" + k] = journal[k]
+    if cpu.get("busiest_cpu_pct") is not None:
+        m["busiest_cpu_pct"] = cpu["busiest_cpu_pct"]
+    for prog, v in (owner.get("bpf") or {}).items():
+        if "natpair" in prog:
+            m["bpf_%s_ns" % prog.split(":")[-1]] = v["ns_per_run"]
+    ct = owner.get("conntrack") or {}
+    for k in ("max_count", "drop", "early_drop", "insert_failed"):
+        if k in ct:
+            m["conntrack_" + k] = ct[k]
+    for k in ("pacing_cut_allowance", "pacing_cut_cpu", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
+              "conntrack_nearly_full", "counter_read_errors", "stepped_down"):
+        if journal.get(k):
+            m["journal_" + k] = journal[k]
+    light, heavy, light_rtt, light_ping = [], [], [], []
+    churn_done, churn_failed, churn_p99 = 0.0, 0, []
+    for h in s["hosts"].values():
+        for w in (h.get("fair") or {}).values():
+            if w["kind"] == "heavy" and "gbps" in w:
+                heavy.append(w["gbps"])
+            if w["kind"] == "light":
+                if "gbps" in w:
+                    light.append(w["gbps"])
+                if "tcp_mean_rtt_ms" in w:
+                    light_rtt.append(w["tcp_mean_rtt_ms"])
+                if (w.get("ping_ms") or {}).get("p90") is not None:
+                    light_ping.append(w["ping_ms"]["p90"])
+        c = h.get("churn") or {}
+        if "completed_per_second" in c:
+            churn_done += c["completed_per_second"]
+            churn_failed += sum(c.get("failed", {}).values())
+            churn_p99.append(c["latency_ms_p99"])
+    if heavy:
+        m["fair_heavy_gbps"] = sum(heavy)
+    if light:
+        m["fair_light_gbps_min"] = min(light)
+        m["fair_light_gbps_sum"] = round(sum(light), 3)
+    if light_rtt:
+        m["fair_light_tcp_rtt_ms_max"] = max(light_rtt)
+    if light_ping:
+        m["fair_light_ping_p90_ms_max"] = max(light_ping)
+    if churn_p99:
+        m["churn_completed_per_s"] = round(churn_done)
+        m["churn_failed"] = churn_failed
+        m["churn_latency_p99_ms_max"] = max(churn_p99)
     m["iperf_gbps"] = s["iperf_total"]["received_gbps"]
     m["retransmits"] = s["iperf_total"]["retransmits"]
     for h in s["hosts"].values():

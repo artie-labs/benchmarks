@@ -73,8 +73,28 @@ wait_standby_ready() {
 # above the baseline bandwidth but below what the NAT's CPU forwards, so AWS's allowance is the limit, not the CPU.
 # UDP_CAP offers 450k (medium) or 900k (large) 64-byte packets a second over 16 flows, under the CPU limit.
 # BURST_CAP offers 8 Gbps (medium) or 14 Gbps (large), about 80% of what the NAT's CPU forwards, to spend the burst
-# allowance quickly. BASELINE_STOP is a little above the baseline bandwidth, where burst runs stop.
+# allowance quickly. BASELINE_STOP is a little above the baseline bandwidth, where burst runs stop. UDP_HI offers
+# 500k (medium) or 1M (large) 64-byte packets a second over 16 flows, just under what one CPU per vCPU forwards.
 case $NAT_INSTANCE_TYPE in
-  c7gn.medium) TCP_CAP=140M UDP_CAP=14.4M BURST_CAP=250M BASELINE_STOP=3.4 ;;
-  c7gn.large) TCP_CAP=312M UDP_CAP=28.8M BURST_CAP=437M BASELINE_STOP=6.6 ;;
+  c7gn.medium) TCP_CAP=140M UDP_CAP=14.4M BURST_CAP=250M BASELINE_STOP=3.4 UDP_HI=16M ;;
+  c7gn.large) TCP_CAP=312M UDP_CAP=28.8M BURST_CAP=437M BASELINE_STOP=6.6 UDP_HI=32M ;;
 esac
+
+# reset_pacing_caps restarts natpair on both NATs, so each starts from the configured caps again: the pacing build
+# keeps its caps in memory and has no setting for the CPU cap. The standby restarts first, takes over through
+# `natpair maintenance`, then the old owner restarts and resumes as the standby.
+reset_pacing_caps() {
+  local owner standby i
+  owner=$(owner_nat)
+  standby=$(other_nat "$owner")
+  on "$standby" 60 "systemctl restart natpair" > /dev/null
+  wait_standby_ready || return 1
+  on "$owner" 120 "natpair maintenance" > /dev/null
+  for ((i = 0; i < 60; i++)); do
+    [[ $(owner_nat) == "$standby" ]] && break
+    sleep 2
+  done
+  on "$owner" 60 "systemctl restart natpair && natpair resume" > /dev/null
+  wait_standby_ready
+  echo "pacing caps reset: owner now $(owner_nat)"
+}
