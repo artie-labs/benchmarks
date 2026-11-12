@@ -1,0 +1,52 @@
+== before-resync 07:40:08
+-- conntrackd copies out of ens5 (own ENI) in 3 s: 12263 datagrams, 0 fragments
+07:40:08.275490 IP 10.40.0.250.49585 > 10.40.0.171.3780: UDP, length 500
+07:40:08.275556 IP 10.40.0.250.49585 > 10.40.0.171.3780: UDP, length 136
+-- out of ens6 (shared) in 3 s: 62593 packets, 0 to port 3780, 0 fragments
+-- fragments the kernel made in those 3 s
+#kernel
+10.40.0.171 dev ens5 src 10.40.0.250 uid 0 
+    cache 
+UNCONN 0      0                              0.0.0.0:49585      0.0.0.0:*    users:(("conntrackd",pid=4133,fd=5))      
+UNCONN 0      0                          10.40.0.250:3780       0.0.0.0:*    users:(("conntrackd",pid=4133,fd=6))      
+	
+requested a full copy
+	
+== during-resync 07:40:22
+-- conntrackd copies out of ens5 (own ENI) in 3 s: 16373 datagrams, 0 fragments
+07:40:22.545491 IP 10.40.0.250.49585 > 10.40.0.171.3780: UDP, length 144
+07:40:22.545865 IP 10.40.0.250.49585 > 10.40.0.171.3780: UDP, length 560
+-- out of ens6 (shared) in 3 s: 63490 packets, 0 to port 3780, 0 fragments
+-- fragments the kernel made in those 3 s
+#kernel
+10.40.0.171 dev ens5 src 10.40.0.250 uid 0 
+    cache 
+UNCONN 0      0                              0.0.0.0:49585      0.0.0.0:*    users:(("conntrackd",pid=4133,fd=5))      
+UNCONN 0      0                          10.40.0.250:3780       0.0.0.0:*    users:(("conntrackd",pid=4133,fd=6))      
+	
+== before-resync 11:05:16
+-- conntrackd copies out of ens5 (own ENI) in 3 s: 12459 datagrams, 0 fragments
+11:05:16.199195 IP 10.40.0.171.55122 > 10.40.0.250.3780: UDP, length 288
+11:05:16.199548 IP 10.40.0.171.55122 > 10.40.0.250.3780: UDP, length 288
+-- out of ens6 (shared) in 3 s: 62772 packets, 0 to port 3780, 0 fragments
+-- fragments the kernel made in those 3 s
+#kernel
+10.40.0.250 dev ens5 src 10.40.0.171 uid 0 
+    cache 
+UNCONN 0      0                          10.40.0.171:3780       0.0.0.0:*    users:(("conntrackd",pid=5010,fd=6))      
+UNCONN 0      1280                           0.0.0.0:55122      0.0.0.0:*    users:(("conntrackd",pid=5010,fd=5))      
+	
+requested a full copy
+	
+== during-resync 11:05:30
+-- conntrackd copies out of ens5 (own ENI) in 3 s: 15206 datagrams, 0 fragments
+11:05:30.709467 IP 10.40.0.171.55122 > 10.40.0.250.3780: UDP, length 68
+11:05:30.709670 IP 10.40.0.171.55122 > 10.40.0.250.3780: UDP, length 508
+-- out of ens6 (shared) in 3 s: 62812 packets, 0 to port 3780, 0 fragments
+-- fragments the kernel made in those 3 s
+#kernel
+10.40.0.250 dev ens5 src 10.40.0.171 uid 0 
+    cache 
+UNCONN 0      0                          10.40.0.171:3780       0.0.0.0:*    users:(("conntrackd",pid=46007,fd=6),("conntrackd",pid=5010,fd=6))
+UNCONN 0      0                              0.0.0.0:55122      0.0.0.0:*    users:(("conntrackd",pid=46007,fd=5),("conntrackd",pid=5010,fd=5))
+	
