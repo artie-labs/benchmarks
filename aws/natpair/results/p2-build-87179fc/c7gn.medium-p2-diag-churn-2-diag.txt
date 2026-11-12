@@ -1,0 +1,74 @@
+== packets out of ens6 by TCP flags (5 s, at most 50000)
+  21989 Flags [.]
+   5343 Flags [P.]
+   5340 Flags [F.]
+   5336 Flags [S]
+      2 Flags [R]
+      2 Flags [R.]
+== packets into ens6 by TCP flags
+  20731 Flags [.]
+   9758 Flags [P.]
+   9756 Flags [F.]
+   4878 Flags [S.]
+   4876 Flags [S]
+== sample of RST packets out
+04:31:42.797836 IP 10.40.0.99.45248 > 35.203.211.251.53080: Flags [R.], seq 0, ack 1872304809, win 0, length 0
+04:31:43.096739 IP 10.40.0.99.9780 > 147.185.133.16.50511: Flags [R.], seq 0, ack 1067383446, win 0, length 0
+04:31:43.940453 IP 10.40.0.99.39857 > 34.214.78.160.443: Flags [R], seq 1622513348, win 0, length 0
+04:31:43.940494 IP 10.40.0.99.39857 > 34.214.78.160.443: Flags [R], seq 1622513348, win 0, length 0
+== sources and destinations of packets out (top)
+  37993 10.40.0.99 10.50.0.104
+  11985 10.40.0.99 10.40.0.250
+     17 10.40.0.99 34.214.78.160
+      3 10.40.0 10.40.0
+      1 10.40.0.99 35.203.211.251
+== iptables filter (nonzero, about 7 s)
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+    4848   341333 NATPAIR_INPUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain FORWARD (policy DROP 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+  411934 350175592 NATPAIR    all  --  *      *       10.40.0.0/16         0.0.0.0/0           
+  412513 27218300 NATPAIR    all  --  *      *       0.0.0.0/0            10.40.0.0/16        
+      86    50576 ACCEPT     all  --  *      *       198.18.0.6           0.0.0.0/0           
+      75    73668 ACCEPT     all  --  *      *       0.0.0.0/0            198.18.0.6           ctstate RELATED,ESTABLISHED
+  411934 350175592 ACCEPT     all  --  *      *       10.40.0.0/16         0.0.0.0/0            ctstate NEW,RELATED,ESTABLISHED
+  412513 27218300 ACCEPT     all  --  *      *       0.0.0.0/0            10.40.0.0/16         ctstate RELATED,ESTABLISHED
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+Chain NATPAIR (2 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+  824447 377393892 RETURN     all  --  *      *       0.0.0.0/0            0.0.0.0/0           match bpf pinned /sys/fs/bpf/natpair/check
+Chain NATPAIR_INPUT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+     136    52789 ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            ctstate RELATED,ESTABLISHED
+    4693   287684 ACCEPT     all  --  *      *       10.40.0.0/16         0.0.0.0/0           
+      19      860 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            reject-with tcp-reset
+== iptables nat (nonzero)
+Chain PREROUTING (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+Chain POSTROUTING (policy ACCEPT 39 packets, 2546 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+   80088  4805486 NATPAIR_SNAT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain NATPAIR_SNAT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+      39     2546 RETURN     all  --  *      *       0.0.0.0/0            0.0.0.0/0            ADDRTYPE match src-type LOCAL
+   80043  4802580 SNAT       all  --  *      *       10.40.0.0/16         0.0.0.0/0            to:10.40.0.99
+       6      360 SNAT       all  --  *      *       198.18.0.6           0.0.0.0/0            to:10.40.0.99
+== nstat since the reset
+TcpInSegs                       119                0.0
+TcpOutSegs                      206                0.0
+== conntrack
+262144
+262144
+net.netfilter.nf_conntrack_tcp_timeout_time_wait = 120
+net.netfilter.nf_conntrack_tcp_timeout_close_wait = 60
+net.netfilter.nf_conntrack_tcp_be_liberal = 1
+net.netfilter.nf_conntrack_tcp_loose = 0
+ 262139 6
+      2 17
+	

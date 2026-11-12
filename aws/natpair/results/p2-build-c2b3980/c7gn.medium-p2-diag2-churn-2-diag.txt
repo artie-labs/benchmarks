@@ -1,0 +1,70 @@
+== ip-10-40-0-171.us-west-2.compute.internal 05:37:33 owner
+== out of ens6 in 3 s, by protocol and destination
+   4983 tcp 10.40.0.250:
+   2829 tcp 10.50.0.104
+    832 udp 10.40.0.250
+     18 tcp 34.214.78.160
+== udp sample
+05:37:36.400730 IP 10.40.0.99.48166 > 10.40.0.250.3780: UDP, length 8936
+05:37:36.400733 IP 10.40.0.99 > 10.40.0.250: ip-proto-17
+05:37:36.400734 IP 10.40.0.99 > 10.40.0.250: ip-proto-17
+== nat conntrack events and sync
+UNCONN 0      0                          10.40.0.171:3780       0.0.0.0:*    users:(("conntrackd",pid=4280,fd=6))      
+UNCONN 0      0                              0.0.0.0:48166      0.0.0.0:*    users:(("conntrackd",pid=4280,fd=5))      
+/run/natpair:
+release
+
+/var/lib/natpair:
+conntrackd.conf
+conntrackd.ctl
+conntrackd.lock
+conntrackd.log
+pacing-off
+	
+== ip-10-40-0-171.us-west-2.compute.internal 05:38:23 owner
+== out of ens6 in 3 s, by protocol and destination
+  10068 tcp 10.40.0.250:
+   6906 tcp 10.50.0.104
+   1783 udp 10.40.0.250
+     18 tcp 44.225.211.8
+== udp sample
+05:38:23.746868 IP 10.40.0.99.48166 > 10.40.0.250.3780: UDP, length 8940
+05:38:23.746869 IP 10.40.0.99 > 10.40.0.250: ip-proto-17
+05:38:23.746870 IP 10.40.0.99 > 10.40.0.250: ip-proto-17
+== nat conntrack events and sync
+UNCONN 0      0                          10.40.0.171:3780       0.0.0.0:*    users:(("conntrackd",pid=4280,fd=6))      
+UNCONN 0      0                              0.0.0.0:48166      0.0.0.0:*    users:(("conntrackd",pid=4280,fd=5))      
+/run/natpair:
+release
+
+/var/lib/natpair:
+conntrackd.conf
+conntrackd.ctl
+conntrackd.lock
+conntrackd.log
+pacing-off
+	
+== ip-10-40-0-250.us-west-2.compute.internal 05:39:01 owner
+== out of ens6 in 3 s, by protocol and destination
+   7661 tcp 10.40.0.171:
+   1288 udp 10.40.0.171
+     18 tcp 35.162.157.222
+      1 tcp 35.203.211.115
+      1 tcp 204.76.203.43
+== udp sample
+05:39:01.828978 IP 10.40.0.99.39498 > 10.40.0.171.3780: UDP, length 16
+05:39:01.875642 IP 10.40.0.99.39498 > 10.40.0.171.3780: UDP, length 8916
+05:39:01.875651 IP 10.40.0.99 > 10.40.0.171: ip-proto-17
+== nat conntrack events and sync
+UNCONN 0      0                              0.0.0.0:39498      0.0.0.0:*    users:(("conntrackd",pid=3996,fd=5))      
+UNCONN 0      0                          10.40.0.250:3780       0.0.0.0:*    users:(("conntrackd",pid=3996,fd=6))      
+/run/natpair:
+release
+
+/var/lib/natpair:
+conntrackd.conf
+conntrackd.ctl
+conntrackd.lock
+conntrackd.log
+pacing-off
+	
