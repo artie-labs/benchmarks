@@ -17,7 +17,7 @@ COUNTERS = ["bw_in_allowance_exceeded", "bw_out_allowance_exceeded", "pps_allowa
 
 def group_name(run):
     name = re.sub(r"^\d{8}T\d{6}Z-", "", run)
-    return re.sub(r"-\d$", "", name)
+    return re.sub(r"-[1-9]$", "", name)
 
 
 def owner_metrics(s, window):
@@ -96,6 +96,9 @@ def main():
     groups = {}
     for path in sorted(glob.glob(os.path.join(results, "2*.json"))):
         s = json.load(open(path))
+        # Standalone samples, such as the 1 ms drop-phase sample, have no run metadata.
+        if "meta" not in s:
+            continue
         window = "tail_30s" if "-limit-" in path or "-burst" in path else "steady"
         groups.setdefault(group_name(s["meta"]["run"]), []).append(owner_metrics(s, window))
     summary = {}

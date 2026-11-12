@@ -15,6 +15,8 @@
 #   PING=0|1               generator 0 pings the receiver 100 times a second through the NAT
 #   HANDOVER_AT=           seconds into the load to run `natpair maintenance` on the owner, then `natpair resume`
 #                          after the run
+#   TARGET=private|public  public sends to the receiver's public IP, through the NATs' internet gateway, the path
+#                          production traffic takes. It needs igw_check = true in Terraform, and costs transfer.
 #   STOP_BELOW_GBPS=       end the run early once the receiver's rate (rx for up, tx for down) has been above this
 #                          and then stays below it for STOP_HOLD=60 seconds. For burst runs: stop once throughput
 #                          falls back to the baseline.
@@ -26,10 +28,10 @@ RESULTS=${RESULTS:-/opt/natpair-bench-results}
 name=$1
 shift
 MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2
-POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60
+POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60 TARGET=private
 for kv in "$@"; do
   case "${kv%%=*}" in
-    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD) declare "$kv" ;;
+    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET) declare "$kv" ;;
     *) echo "unknown setting: $kv" >&2; exit 2 ;;
   esac
 done
@@ -38,6 +40,10 @@ run=$(date -u +%Y%m%dT%H%M%SZ)-$name
 owner=$(owner_nat)
 standby=$(other_nat "$owner")
 receiver_ip=$(ip -4 -o route get 10.40.0.1 | awk '{for (i = 1; i < NF; i++) if ($i == "src") print $(i + 1)}')
+if [[ $TARGET == public ]]; then
+  token=$(curl -s -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' http://169.254.169.254/latest/api/token)
+  receiver_ip=$(curl -s -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/public-ipv4)
+fi
 # SSM takes a few seconds to deliver a command, so everything starts on a shared clock a little later.
 start=$(($(date +%s) + 20))
 load_at=$((start + PRE))
@@ -85,8 +91,13 @@ if [[ -n $STOP_BELOW_GBPS ]]; then
         if (($(date +%s) - below_since >= STOP_HOLD)); then
           date +%s.%N > "$stop_file"
           echo "stopping: receiver at $gbps Gbps, below $STOP_BELOW_GBPS for ${STOP_HOLD}s"
-          for instance in $GENERATORS "$owner" "$standby"; do
-            ssm_send "$instance" 60 "pkill -TERM -x enapoll; pkill -TERM -x iperf3" > /dev/null
+          # Load first, samplers 5 s later, so the samples show the counters settle after the load stops.
+          for instance in $GENERATORS; do
+            ssm_send "$instance" 60 "pkill -TERM -x iperf3; sleep 5; pkill -TERM -x enapoll" > /dev/null
+          done
+          sleep 8
+          for instance in "$owner" "$standby"; do
+            ssm_send "$instance" 60 "pkill -TERM -x enapoll" > /dev/null
           done
           pkill -TERM -x enapoll
           break
@@ -130,7 +141,7 @@ python3 -I -c 'import json, sys; print(json.dumps(dict(a.split("=", 1) for a in 
   handover_sent="$handover_sent" handover_done="$handover_done" resume_done="$resume_done" stopped_at="$stopped_at" \
   MODE="$MODE" PROCS="$PROCS" STREAMS="$STREAMS" RATE="$RATE" MSS="$MSS" LEN="$LEN" DURATION="$DURATION" PRE="$PRE" \
   POST="$POST" PATTERN="$PATTERN" ON="$ON" OFF="$OFF" POLL="$POLL" GPOLL="$GPOLL" RPOLL="$RPOLL" PING="$PING" \
-  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" > "$dir/meta.json"
+  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" > "$dir/meta.json"
 aws s3 cp --only-show-errors "$dir/meta.json" "s3://$BUCKET/runs/$run/meta.json"
 aws s3 sync --only-show-errors "s3://$BUCKET/runs/$run/" "$dir/"
 mkdir -p "$RESULTS"

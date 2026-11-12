@@ -72,8 +72,9 @@ wait_standby_ready() {
 # Per NAT type: TCP_CAP is the iperf3 rate per flow that offers 4.5 Gbps (medium) or 10 Gbps (large) over 32 flows,
 # above the baseline bandwidth but below what the NAT's CPU forwards, so AWS's allowance is the limit, not the CPU.
 # UDP_CAP offers 450k (medium) or 900k (large) 64-byte packets a second over 16 flows, under the CPU limit.
-# BASELINE_STOP is a little above the baseline bandwidth, where burst runs stop.
+# BURST_CAP offers 8 Gbps (medium) or 14 Gbps (large), about 80% of what the NAT's CPU forwards, to spend the burst
+# allowance quickly. BASELINE_STOP is a little above the baseline bandwidth, where burst runs stop.
 case $NAT_INSTANCE_TYPE in
-  c7gn.medium) TCP_CAP=140M UDP_CAP=14.4M BASELINE_STOP=3.4 ;;
-  c7gn.large) TCP_CAP=312M UDP_CAP=28.8M BASELINE_STOP=6.6 ;;
+  c7gn.medium) TCP_CAP=140M UDP_CAP=14.4M BURST_CAP=250M BASELINE_STOP=3.4 ;;
+  c7gn.large) TCP_CAP=312M UDP_CAP=28.8M BURST_CAP=437M BASELINE_STOP=6.6 ;;
 esac

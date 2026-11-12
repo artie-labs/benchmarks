@@ -174,6 +174,18 @@ resource "aws_security_group" "receiver" {
     cidr_blocks = [local.test_cidr]
   }
 
+  # Only for TARGET=public runs: worker traffic that leaves through the internet gateway arrives from the shared
+  # Elastic IP.
+  dynamic "ingress" {
+    for_each = var.igw_check ? [aws_eip.shared.public_ip] : []
+    content {
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["${ingress.value}/32"]
+    }
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -181,3 +193,4 @@ resource "aws_security_group" "receiver" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+
