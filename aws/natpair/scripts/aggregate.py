@@ -77,11 +77,18 @@ def owner_metrics(s, window):
     for prog, v in (owner.get("bpf") or {}).items():
         if "natpair" in prog:
             m["bpf_%s_ns" % prog.split(":")[-1]] = v["ns_per_run"]
+    limits = owner.get("pacing_limits") or {}
+    if limits.get("kpps_median") is not None:
+        m["pacing_packet_cap_kpps_median"] = limits["kpps_median"]
+        m["pacing_packet_cap_kpps_min"] = limits["kpps_min"]
+    status = owner.get("pacing_status") or {}
+    if "cap_cuts_total" in status:
+        m["pacing_cap_cuts"] = status["cap_cuts_total"]
     ct = owner.get("conntrack") or {}
     for k in ("max_count", "drop", "early_drop", "insert_failed"):
         if k in ct:
             m["conntrack_" + k] = ct[k]
-    for k in ("pacing_cut_allowance", "pacing_cut_cpu", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
+    for k in ("pacing_cut_allowance", "pacing_cut_cpu", "pacing_stopped_cutting", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
               "conntrack_nearly_full", "counter_read_errors", "stepped_down"):
         if journal.get(k):
             m["journal_" + k] = journal[k]

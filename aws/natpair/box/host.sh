@@ -74,6 +74,15 @@ if [[ $role == nat ]]; then
       sleep 1
     done
   ) > conntrack.csv &
+  # The caps pacing enforces, from its limits map, once a second: four costs in nanoseconds per unit (aggregate bytes
+  # times 65536, aggregate packets, worker bytes times 65536, worker packets; 0 is no cap) and when they expire. The
+  # map exists only while pacing is loaded.
+  (
+    while kill -0 "$sampler" 2> /dev/null; do
+      echo "$(date +%s.%N) $(bpftool -j map dump name natpair_limits 2> /dev/null | tr -d '\n ')"
+      sleep 1
+    done
+  ) > limits.txt &
 fi
 
 # One iperf3 client process per receiver port, PROCS per generator, each with STREAMS flows.

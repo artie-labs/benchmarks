@@ -213,12 +213,22 @@ out) from the shared Elastic IP for 60 s with no allowance counter moving on any
 
 # Phase 2: pacing A/B
 
-Measured 2026-11-12 in the same sandbox with natpair v0.1.99, built from the unpushed natpair branch
+**Pacing (natpair#8) is parked** as of 2026-11-13. The next design gives natpair's own work priority over
+forwarding instead (see [Phase 3](#phase-3-control-plane-priority)). These results stay as the record of what pacing
+did.
+
+Measured 2026-11-12 and 2026-11-13 in the same sandbox with natpair v0.1.99, built from the natpair branch
 bench/v0.1.99, and the module from the same commit. NATs booted with `pacing = { enabled = true }` and no start
 caps. Each run switched pacing with `natpair pacing-off` or `pacing-on` on both NATs first, alternating off and on
-within each round, 3 rounds. Both NATs ran kernel 6.18.56 with irqbalance off.
+within each round, 3 rounds. irqbalance was off.
 
-Three builds ran. Each fixed what the one before it showed (see [Bugs](#bugs-found-in-the-pacing-build)):
+**Kernel.** Through 081f24b (2026-11-12) both NATs ran kernel 6.18.56. The 2026-11-13 deploy (5f72e81 and b43be20)
+booted kernel 6.1.190 (`al2023-ami-2023.12.20261112.0-kernel-6.1-arm64`): the module's AMI filter
+`al2023-ami-2023.*-kernel-*-arm64` with `most_recent` picks whichever kernel line AWS published last, and the 6.1
+image came out after the 6.18 one. The module has no AMI input, so the bench couldn't pin it. Compare numbers across
+that line with care. Within a day, off and on ran on the same NATs.
+
+Six builds ran. Each fixed what the one before it showed (see [Bugs](#bugs-found-in-the-pacing-build)):
 
 | Build | What it adds | Results |
 | --- | --- | --- |
@@ -226,11 +236,14 @@ Three builds ran. Each fixed what the one before it showed (see [Bugs](#bugs-fou
 | c2b3980 | fix A: the CPU cap cuts only when forwarded traffic fills the CPU, floor 250k pps per CPU | [results/p2-build-c2b3980](results/p2-build-c2b3980) |
 | b9f46d9 | fix B: AWS caps cut only for drops forwarded traffic causes, floor 100k pps; conntrackd copies through each NAT's own ENI (natpair#11) | [results/p2-build-b9f46d9](results/p2-build-b9f46d9) |
 | 081f24b | the NAT's own traffic skips conntrack, 90%-full warning, pacing follows interfaces by index (natpair#12) | [results/p2-build-081f24b](results/p2-build-081f24b) |
+| 5f72e81 | tighter firewall for untracked traffic, worker map bounded at 65,536 | [results/p2-build-5f72e81](results/p2-build-5f72e81) |
+| b43be20 | CPU cap starts uncapped, averages CPU over 300 ms, cuts above 80% busy, rises 10%/s below 70%, forgets past cuts. AWS caps start uncapped and re-probe 10 s after a cut. `cap_cuts` in the status | [results/p2-build-b43be20](results/p2-build-b43be20) |
 
 ## Scenarios
 
-**Phase 2 is paused.** The sandbox was torn down on 2026-11-12 at the user's request. Everything ran on
-c7gn.medium only. Each build folder has its run summaries and a `summary.json` with medians and ranges.
+Each build folder has its run summaries and a `summary.json` with medians and ranges. This table covers the
+2026-11-12 builds on c7gn.medium. [2026-11-13](#2026-11-13-5f72e81-and-b43be20) has the later builds and the
+c7gn.large.
 
 Medians of 3 runs per side, range in parentheses. "Takeovers" counts per run.
 
@@ -257,6 +270,81 @@ Notes:
   near 55%, so it never uses the burst allowance and gives up 60 to 70% of the unpaced peak. It does keep the pair
   from flapping, which pacing off doesn't at that peak.
 - UDP at 500k pps (c2b3980) still flapped with pacing on: the CPU spends its time receiving before pacing drops.
+
+## 2026-11-13: 5f72e81 and b43be20
+
+A new deploy on kernel 6.1.190 (see the kernel note above). 5f72e81 ran the checks that don't depend on the CPU cap
+on c7gn.medium. b43be20 then replaced both NATs (same v0.1.99 path, new sha256 8464525b…ad75) and ran the throughput
+and overload scenarios on c7gn.medium. Pacing was parked before the c7gn.large runs, which ran with pacing off
+([Phase 3](#phase-3-control-plane-priority)). Medians of 3 runs, range in parentheses, unless a
+row says otherwise. The owner's CPU is the share of its busiest CPU in use. "ns per packet" divides the owner's busy
+CPU by the packets it received on both ENIs. The bench now samples pacing's limits map once a second on each NAT
+(`pacing_limits` in each summary), so the caps show over time, not only in the once-a-minute status line.
+
+### 5f72e81 on c7gn.medium
+
+| Check | Result | Bar | Verdict |
+| --- | --- | --- | --- |
+| Smoke | TCP off 8.73 Gbps at 100% CPU, on 4.49 Gbps. Fairness, churn and a pacing-off/on toggle ran clean | runs complete | pass |
+| Churn, 3,000 connections a second, off and on | 3,000/s completed both ways, copies leave ens5 unfragmented, conntrackd 26 to 28% CPU. p99 latency 1.4 to 3.2 s in 5 of 6 runs from the second run on (max 9.4 s: SYN retries at 1, 3 and 7 s), against 1.6 to 1.9 ms in every run on 081f24b and kernel 6.18 | | pass on rate, latency regressed (bug 9) |
+| Forced full copy at 3,000/s for 120 s | Table reached 262,133 of 262,144. 90% warning logged at 238,137 (`the connection table is nearly full`). No DNS or lease failures, but the path probes, which go out through the shared Elastic IP and so need a table entry, timed out: owner stepped down at 95 s, the new owner inherited a full copied table and stepped down 26 s later. 2 takeovers. Copies: 16,526 datagrams in 3 s on ens5, 0 fragments, 0 to 3780 on the shared ENI | no step-down, no own DNS or probe drops | fail (bug 4 remains for probes) |
+| Takeover with pacing on, 2 Gbps, 3 rounds | The new owner logged `pacing interface ens6` 6.5 to 7 s after `ownership acquired`, no `eth0`, 0 `failed to read allowance counters` on either NAT. Ping gap 9.5 s (9.5 to 10.0), receiver gap 13.0 s | right interface, no counter errors | pass |
+| ACK probes from the receiver | Every probe got a reset (nmap `unfiltered`, `reset ttl 127`): the shared address, NAT a and NAT b, ports 22, 8080 and 61500 (outside 32768-60999) and 40000 and 50000 (inside). On the owner, 87 packets hit `ACCEPT tcp dpts:32768:60999 flags:!SYN ctstate UNTRACKED` to its own address (the kernel resets them, no socket) and 11 hit `REJECT --reject-with tcp-reset` | resets inside the range, the same reset outside | pass: all ports answer alike, as intended |
+| Handover while saturated, pacing on (TCP as fast as it goes) | Ping gap 10.8 s (10.2 to 10.9), receiver gap 14.35 s (14.2 to 14.4), exactly 1 takeover a run, 0 lease failures, 1 to 2 `shared Elastic IP not working yet` retries on the new owner | | pass |
+| `pacing-off` for 20 s while saturated | 0 takeovers, longest ping gap 0.05 to 0.07 s, 5.5 Gbps | | pass (081f24b took over every run) |
+
+Raw ACK-probe output: [c7gn.medium-p2-ext-probe.txt](results/p2-build-5f72e81/c7gn.medium-p2-ext-probe.txt). Resync
+evidence: [c7gn.medium-p2-resync-diag.txt](results/p2-build-5f72e81/c7gn.medium-p2-resync-diag.txt).
+
+### b43be20 on c7gn.medium
+
+| Scenario | Pacing off | Pacing on | Bar | Verdict |
+| --- | --- | --- | --- | --- |
+| Highest stable unpaced rate, TCP uploads at 7, 8 and 9 Gbps offered, 60 s | stable at all three: 7.0 Gbps at 82% CPU, 7.98 at 91%, 8.70 (8.68 to 8.71) at 100%, 0 takeovers in 9 runs | 4.17 (3.99 to 4.41), 4.23 (4.22 to 4.26), and at 9 Gbps either 4.12 or 7.92 (2 of 3 runs) | | the bar for scenario 1 is 8.70 Gbps |
+| 1. TCP as fast as 32 flows go | 8.69 Gbps (8.66 to 8.92), 100% CPU, 0 takeovers | 4.18 Gbps (4.07 to 4.64), 70% CPU, 0 takeovers | paced at least 90% of 8.70 (7.83 Gbps), 0 takeovers | fail: 48% |
+| 1. UDP 64-byte at 500k pps | 488k pps forwarded at 95% CPU, 0 takeovers | 398k pps (383k to 412k), 1 to 2 takeovers in every run | | fail: pacing on flaps where off doesn't (bug 7) |
+| 1b. Overhead at fixed rates, TCP 2 Gbps | 2.0 Gbps, 1,374 ns per packet, 25% CPU | 2.0 Gbps, 1,778 ns (+29%), 33% CPU | under 5% throughput loss | pass on throughput |
+| 1b. UDP 200k pps | 200k, 2,295 ns, 46% CPU | 200k, 2,525 ns (+10%), 51% CPU | under 5% throughput loss | pass |
+| 3. CPU overload, 88-byte TCP segments, 64 flows | 881k pps at 100% CPU, 0 takeovers | 447k pps at 71% CPU, 0 takeovers | 0 takeovers | pass (off also had none on this kernel) |
+| 4. Burst: does pacing use it, and what happens at the cliff (one spend run, then 2 idle minutes and 240 s at 8 Gbps, 3 runs before the stop) | cliff runs: 8.38 Gbps, then the cliff to 3.08 Gbps inside the 240 s, about 243k `bw_out` drops a second after it | spend run: the CPU cap gave up 4 times, so it forwarded 8.3 Gbps, then 6.7 Gbps under a 632 kpps cap left over from the last give-up, for 907 s until the burst ran out. At the cliff the allowance cap cut once, to 4.88 Gbps, and gave up 59 ms later. AWS then dropped about 247k packets a second at 3.1 Gbps, unpaced. Cliff run: 4.44 Gbps under the CPU cap, still inside the refilled burst, 0 drops | | fail: pacing uses the burst only when its CPU cap gives up, and doesn't follow the cliff (bug 12) |
+
+- **The CPU cap holds the medium near 400k pps at about 70% busy, half the unpaced rate.** It cuts whenever the
+  300 ms average passes 80% and climbs back 10% a second below 70%, so the limits map swings between about 250k and
+  480k pps (median 390k to 420k) and never settles near the 80% it cuts at. With pacing on, each forwarded packet
+  costs about 550 ns more CPU at this load (1,776 to 1,814 ns against 1,225 to 1,244), so 70% busy is about 400k
+  pps. `cap_cuts` stayed 0: it counts allowance cuts only, not CPU cuts.
+- **Sometimes it gives up instead.** If the CPU stays full for one 300 ms window after the first cut, it logs `a CPU
+  stayed full after pacing forwarded less, so pacing restored the packet cap and stopped cutting it` and runs uncapped
+  until the CPU drops below 80%. Under steady overload that never happens, so pacing stays off in effect: 7.92 Gbps
+  at 100% CPU in 2 of 3 runs at 9 Gbps offered, and in the UDP runs, where the full CPU then flapped the pair.
+- **AWS caps:** no allowance counter moved in scenarios 1 to 3, so only the burst run shows the allowance cap.
+
+### Where pacing's CPU goes (b43be20, c7gn.medium)
+
+TCP uploads at a fixed rate, 45 s, 3 rounds, four setups on the owner's two ENIs: pacing off (the default fq_codel),
+pacing's fq root qdisc only, fq plus pacing's own mark and pace programs attached as natpair attaches them but with a
+limits value of no caps that never expires, and full pacing. The third setup pins a second reference to the programs
+natpair loaded, turns pacing off, and attaches them by hand
+([jobs/p2-overhead-parts.sh](jobs/p2-overhead-parts.sh)). 8 Gbps is the highest rate the unpaced medium forwards
+stably with CPU to spare. At 9 Gbps its CPU is full, where CPU per packet can't be compared.
+
+| Setup | 4 Gbps: ns per packet | busiest CPU | 8 Gbps: ns per packet | busiest CPU | forwarded at 8 Gbps |
+| --- | --- | --- | --- | --- | --- |
+| off (fq_codel) | 1,245 (1,225 to 1,264) | 46% | 1,196 (1,190 to 1,213) | 90% | 748k pps, 7.99 Gbps |
+| fq qdisc only | 1,308 (1,245 to 1,344) | 49% | 1,202 (1,197 to 1,202) | 89% | 742k, 7.99 |
+| fq + BPF programs, no caps | 1,304 (1,294 to 1,317) | 48% | 1,252 (1,221 to 1,282) | 93% | 743k, 7.99 |
+| full pacing | 1,466 (1,386 to 1,567) | 53% | 1,635 (1,352 to 1,727) | 72% | 440k (414k to 732k), 4.69 (4.45 to 7.88) |
+
+- The qdisc and the programs together cost 0 to 60 ns a packet. The programs measure 31 to 33 ns (`natpair_mark`)
+  and 105 to 125 ns (`natpair_pace`) a run, partly on the packets' existing path.
+- The rest comes with pacing actually running. The daemon uses 4 to 6.5% of the CPU instead of 1 to 2% (about
+  100 ns a packet at 400k pps). When the cap binds (8 Gbps), softirq time per packet rises from 1,116 to 1,351 ns
+  as fq holds packets (8M packets waited a run) and TCP backs off. At 4 Gbps, where the cap bound only in round 1,
+  full pacing cost 1,386 to 1,466 ns in the rounds with no waiting packets.
+- One 8 Gbps run gave up cutting (7.88 Gbps, 99% CPU), the same bimodal outcome as above.
+
+The c7gn.large pacing runs (scenario 7) did not run: pacing was parked first. The large's unpaced baselines are in
+[Phase 3](#phase-3-control-plane-priority).
 
 ## Bugs found in the pacing build
 
@@ -289,36 +377,114 @@ Notes:
    TIME_WAIT timeout shorter.
 5. **Minor: a new owner paces `eth0` before udev renames the shared ENI.** It logs `pacing interface eth0`, about
    25 `failed to read allowance counters ... no such device` lines, then paces ens6 0.27 s later.
+6. **Path probes still need a connection table entry (5f72e81).** 081f24b and 5f72e81 take the NAT's own DNS,
+   lease and AWS API traffic out of conntrack, and in the 120 s forced-copy run none of it failed. But the path
+   probes leave through the shared Elastic IP from 198.18.0.6, translated like worker traffic, so a full table
+   drops them, and the owner steps down. The new owner inherits the same full table from the copy and steps down
+   too:
+
+   ```
+   02:14:34 owner   WARN the connection table is nearly full ... "connections":238137,"max_connections":262144
+   02:14:46 owner   health round "healthy":false, "probe_error":"failed to connect to probe receiver 44.238.153.130:443:
+                    dial tcp4 198.18.0.6:0->44.238.153.130:443: i/o timeout", "tracked_connections":262133
+   02:14:49 owner   ownership session ended "reason":"stepped down after corroborated path failure"
+   02:15:15 standby ownership session ended "reason":"stepped down after corroborated path failure"
+   ```
+
+   With the table full, new worker connections fail too (42,364 dial timeouts in that run), so the probe is right
+   that the path is broken. But the takeover doesn't help, because the peer's table is the same. Run
+   `20261113T021248Z-c7gn.medium-p2-resync`.
+7. **The CPU cap can give up and leave the CPU full (b43be20).** After a cut, if one 300 ms window still shows
+   the CPU full, the cap goes back to uncapped and stops cutting until the CPU falls below 80%, which steady
+   overload never allows. At 9 Gbps of TCP this happened in 2 of 3 runs (7.92 Gbps, 100% CPU). With 64-byte UDP at
+   500k pps it happened in all 3 runs, and the full CPU then cost the owner its path probes: 1 to 2 takeovers a
+   run, while pacing off forwarded 488k pps with none.
+
+   ```
+   03:44:33 WARN a CPU stayed full after pacing forwarded less, so pacing restored the packet cap and stopped
+            cutting it "busiest_cpu":1,"forwarded_kpps":334.1
+   03:45:23 WARN ownership session ended "reason":"stepped down after corroborated path failure"
+   ```
+
+8. **The CPU cap settles at half the unpaced rate (b43be20).** It cuts above 80% and rises below 70%, but pacing
+   itself adds about 550 ns a packet when it binds, so the medium sits at about 400k pps and 70% busy: 4.2 Gbps
+   where the unpaced pair forwards 8.7 Gbps without a takeover. See [Where pacing's CPU goes](#where-pacings-cpu-goes-b43be20-c7gnmedium).
+9. **Churn latency regressed on the 2026-11-13 deploy (cause unknown).** At 3,000 connections a second, p99 rose to
+   1.4 to 3.2 s (SYN retries) from the second run on, with pacing off and on alike, no conntrack drops, and the
+   table at about 224k. Both the build (5f72e81) and the kernel (6.1.190) differ from 081f24b's clean runs, so this
+   bench can't tell which.
+10. **The module's AMI choice changes the kernel line.** `al2023-ami-2023.*-kernel-*-arm64` with `most_recent`
+    picked kernel 6.1 on 2026-11-13 and 6.18 the day before. A NAT replaced on another day can boot a different
+    kernel than its peer. An `ami_id` input or a pinned kernel line in the filter would fix it.
+11. **Minor: pacing doesn't notice its qdisc and filters were removed.** A bench cleanup step deleted them on the
+    owner while pacing was on. natpair kept reporting pacing on, and `natpair pacing-on` did nothing, until
+    `pacing-off` and `pacing-on` re-attached them.
+12. **The allowance cap gives up at the burst cliff (b43be20).** When the medium's burst ran out at 6.7 Gbps, one
+    cut to 80% (4.88 Gbps) could not get under the 3.1 Gbps baseline, so the next poll still saw drops, and the cap
+    restored itself and stopped cutting. AWS then dropped about 247k packets a second for the rest of the run.
+
+    ```
+    05:19:52.119 WARN the instance exceeded its network allowance, so pacing cut its cap
+                 "bw_out_allowance_exceeded":2509,"forwarded_mbps":6101.8,"cap_mbps":4881.4
+    05:19:52.178 WARN AWS kept dropping after pacing forwarded less, so pacing restored its cap and stopped cutting
+                 it "bw_out_allowance_exceeded":2895,"cap_mbps":0
+    ```
+
+    Run `20261113T050419Z-c7gn.medium-p2-s4b-spend-on`.
 
 ## What's left
 
-- On 5f72e81 (sha256 3eb0734b…c8f8, tighter firewall, worker map bounded at 65,536): smoke, the 120 s forced-copy
-  churn run (bar: no step-down and no own DNS or probe drops when the table fills; record the 90% warning), a
-  takeover (pacing on the right interface, no counter-read errors), [jobs/p2-ext-probe.sh](jobs/p2-ext-probe.sh)
-  (ACK probes from outside to the shared and own addresses, ports inside and outside 32768-60999), then CPU
-  overload, the fixed-rate overhead A/B and the handover job.
-- All of scenario 7 and the c7gn.large runs: overhead, CPU overload, and IRQ placement after a takeover.
+- Pacing is parked, so its open items (bugs 7, 8 and 12, and the large's pacing runs) wait on a decision.
+- Bugs 6, 9 and 10 don't depend on pacing.
 
-## Resume on 5f72e81
+# Phase 3: control-plane priority
+
+The next natpair design gives natpair's own work (the daemon, conntrackd and the primary ENI's receive thread)
+priority over the shared ENI's forwarding thread, with threaded NAPI, so a CPU-saturated owner keeps its lease, DNS
+and probes. These are the baselines it has to beat: b43be20 with pacing off (`natpair pacing-off` on both NATs),
+kernel 6.1.190, measured 2026-11-13. Runs: [results/p3-baseline-b43be20](results/p3-baseline-b43be20)
+([jobs/p3-baseline.sh](jobs/p3-baseline.sh)) for the large, and the pacing-off sides of the b43be20 medium runs in
+[results/p2-build-b43be20](results/p2-build-b43be20). Medians of 3 runs, range in parentheses.
+
+| Load, pacing off | c7gn.medium | c7gn.large |
+| --- | --- | --- |
+| TCP uploads as fast as 32 flows go | 8.69 Gbps (8.66 to 8.92), CPU 100%, 0 takeovers in 3 runs | 17.96 Gbps (17.91 to 18.14), both CPUs 100%, 0 takeovers in 3 runs, ping through the NAT lost 3.6%, longest gap 0.06 s |
+| TCP with 88-byte segments, 64 flows (90 s) | 881k pps forwarded, CPU 100%, 0 takeovers, 0 lease or DNS failures in 3 runs | 1.91M pps (1.90M to 1.92M), both CPUs 100%, 0 takeovers in 3 runs, ping lost 5.4%, longest gap 0.07 s |
+| TCP at fixed 9 Gbps (60 s) | 8.70 Gbps at 100%, 0 takeovers in 3 runs | |
+| UDP 64-byte at 500k pps | 488k pps at 95%, 0 takeovers in 3 runs | |
+
+**Interrupt spreading (natpair#10) holds after takeovers.** On every new owner of 3 takeovers on the large, the
+shared ENI's two queue interrupts went to different CPUs (`ens6-Tx-Rx-0` on CPU 0, `ens6-Tx-Rx-1` on CPU 1), as
+did the primary ENI's, with irqbalance off. Each takeover at 2 Gbps cost a ping gap of 8.0 s (7.5 to 10.0) and a
+receiver gap of 13.0 s, with 1 to 2 probe retries on the new owner.
+
+**Spread interrupts nearly double the large's forwarding.** Unlimited TCP reached 17.96 Gbps with both CPUs full,
+against 9.6 Gbps in phase 1 with both shared-ENI interrupts on one CPU and 14.7 Gbps once irqbalance had spread them.
+That phase 1 run used 16 flows on kernel 6.18 and this one 32 flows on kernel 6.1, so part of the gain may be the
+setup. It is far inside the large's 30 Gbps burst, and no allowance counter moved.
+
+**No flapping in this baseline.** Saturated for 60 to 90 s, neither type lost a lease, a DNS lookup or a probe, and
+no run took over. That differs from phase 1 (v0.1.1, kernel 6.18), where every unlimited UDP run flapped, and from
+081f24b on 6.18, where the same 88-byte overload took 1 to 2 takeovers a run with 13 lease failures. Since then the
+NAT's own traffic left conntrack (081f24b, 5f72e81) and the kernel changed to 6.1, and this bench can't separate the
+two. A test of the new design should first reproduce the flap: pin kernel 6.18 (bug 10), or run longer or harder,
+such as small UDP above the CPU limit for 10 minutes, which flapped 7 times on the phase 1 large.
+
+## Resume
+
+The stack is **stopped, not destroyed** (2026-11-13 06:15 UTC): both NATs are c7gn.large on b43be20 with pacing off,
+the bucket holds the b43be20 release at `natpair/v0.1.99/`, and `tf/terraform.tfvars` points at it. Stopped, it
+costs about $0.01 an hour (the shared Elastic IP and five 8 GB volumes).
 
 ```sh
-git -C <workspace>/natpair worktree add --detach ../natpair.worktrees/bench-v0.1.99 5f72e81  # or check it out there
-cd aws/natpair
-./scripts/build.sh
-# tf/terraform.tfvars: aws_profile, nat_instance_type = "c7gn.medium", pacing = { enabled = true },
-#   natpair_release = "v0.1.99", natpair_release_sha256 = "3eb0734b39a519d754254b78e957bcf1fcb924be2040de25a71b1e727c03c8f8"
-terraform -chdir=tf init
-terraform -chdir=tf apply -target=aws_s3_bucket.bench -target=aws_s3_bucket_public_access_block.bench
-B=$(aws s3 ls | awk '/natpair-bench-/{print $3}')
-aws s3 cp <workspace>/natpair/dist/natpair_linux_arm64.tar.gz s3://$B/natpair/v0.1.99/
-echo "natpair_release_url = \"s3://$B/natpair\"" >> tf/terraform.tfvars
-terraform -chdir=tf apply
-./scripts/replace-nats.sh   # once, so both NATs register with SSM
-for j in p2-smoke p2-churn-resync p2-ext-probe p2-s3-overload p2-s1b-fixed p2-s6-handover; do
-  ./scripts/submit-job.sh medium-$j jobs/$j.sh
-done
+aws ec2 start-instances --instance-ids <the five bench=natpair instances>
+# generators and the receiver stop 4 hours after each boot. The NATs don't, so run shutdown -h +240 on them
 ```
 
-For the large, set `nat_instance_type = "c7gn.large"`, run `./scripts/replace-nats.sh`, and submit
-`p2-s1-overhead`, `p2-s1b-fixed`, `p2-s3-overload` and `p2-s6-handover`. The generators and receiver stop 4 hours
-after boot, so re-arm them (`shutdown -h +240`) for longer sessions.
+For a new build: copy the tarball to `s3://<bucket>/natpair/v0.1.99/natpair_linux_arm64.tar.gz` (or a new tag),
+set `natpair_release_sha256`, check out the build's module in `natpair.worktrees/bench-v0.1.99`, `terraform
+-chdir=tf apply`, then `./scripts/replace-nats.sh`. On a first apply, replace-nats.sh stops at `natpair maintenance`
+because the old owner never registered with SSM: replace that NAT with `terraform apply -replace` instead.
+
+Tear down: `terraform -chdir=tf destroy`, then check instances, addresses, network interfaces and peering directly,
+as the README says.

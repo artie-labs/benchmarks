@@ -36,6 +36,7 @@ JOURNAL_PATTERNS = {
     "conntrackd_netlink_loss": r"(?i)conntrackd.*(netlink|overrun|ENOBUFS|no buffer space|lost)",
     "pacing_cut_allowance": r"pacing cut its cap",
     "pacing_cut_cpu": r"forwarding CPU is nearly full",
+    "pacing_stopped_cutting": r"stopped cutting it",
     "pacing_failed": r"failed to load pacing|failed to pace",
     "pacing_off": r"pacing off|pacing-off|pacing turned off|pacing is off",
     "conntrack_nearly_full": r"connection table is nearly full",
@@ -365,17 +366,20 @@ def pacing_status(host_dir):
         return None
     last = None
     count = 0
+    cuts = 0
     for line in open(path, errors="replace"):
         if '"pacing status"' in line:
             try:
                 last = json.loads(line[line.index("{"):])
                 count += 1
+                cuts += last.get("cap_cuts", 0)
             except ValueError:
                 pass
     if last is None:
         return None
     last = {k: v for k, v in last.items() if k not in ("time", "level", "msg")}
     last["lines"] = count
+    last["cap_cuts_total"] = cuts
     return last
 
 
@@ -415,6 +419,36 @@ def conntrack_stats(host_dir, start, end):
     if os.path.exists(full):
         out["dmesg_table_full_lines"] = int(open(full).read().strip() or 0)
     return out
+
+
+def pacing_limits(host_dir, load_at):
+    """Pacing's caps once a second from limits.txt: seconds since the load started, the aggregate packet cap in kpps
+    and the aggregate byte cap in Mbit/s. None means no cap."""
+    path = os.path.join(host_dir, "limits.txt")
+    if not os.path.exists(path):
+        return None
+    series = []
+    for line in open(path):
+        parts = line.split(None, 1)
+        try:
+            raw = bytes(int(b, 16) for b in json.loads(parts[1])[0]["value"])
+        except (IndexError, KeyError, ValueError):
+            continue
+        if len(raw) < 40:
+            continue
+        costs = [int.from_bytes(raw[i * 8:(i + 1) * 8], "little") for i in range(5)]
+        kpps = round(1e9 / costs[1] / 1e3, 1) if costs[1] else None
+        mbps = round(1e9 * 65536 / costs[0] * 8 / 1e6, 1) if costs[0] else None
+        series.append([round(float(parts[0]) - load_at, 1), kpps, mbps])
+    if not series:
+        return None
+    capped = [s[1] for s in series if s[1] is not None]
+    return {
+        "series": series,
+        "kpps_min": min(capped) if capped else None,
+        "kpps_median": statistics.median(capped) if capped else None,
+        "uncapped_samples": sum(1 for s in series if s[1] is None),
+    }
 
 
 def irq_layout(host_dir):
@@ -554,6 +588,7 @@ def analyze(run_dir):
             per_cpu = [100 - v["idle"] - v["iowait"] for k, v in host["cpu"]["cpus"].items() if k != "cpu"]
             host["cpu"]["busiest_cpu_pct"] = round(max(per_cpu), 1) if per_cpu else None
         host["pacing_status"] = pacing_status(host_dir)
+        host["pacing_limits"] = pacing_limits(host_dir, load_at)
         host["bpf"] = bpf_stats(host_dir)
         host["conntrack"] = conntrack_stats(host_dir, *steady)
         host["irq"] = irq_layout(host_dir)
