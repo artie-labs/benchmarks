@@ -1,0 +1,49 @@
+owner i-0f6deb0a8be8a0a7e, shared 10.40.0.226, nat a 10.40.0.116, nat b 10.40.0.197
+counters zeroed
+== nmap -sA 10.40.0.226
+Nmap scan report for 10.40.0.226
+22/tcp    unfiltered ssh        reset ttl 127
+8080/tcp  unfiltered http-proxy reset ttl 127
+40000/tcp unfiltered safetynetp reset ttl 127
+50000/tcp unfiltered ibm-db2    reset ttl 127
+61500/tcp unfiltered unknown    reset ttl 127
+== nmap -sA 10.40.0.116
+Nmap scan report for 10.40.0.116
+22/tcp    unfiltered ssh        reset ttl 127
+8080/tcp  unfiltered http-proxy reset ttl 127
+40000/tcp unfiltered safetynetp reset ttl 127
+50000/tcp unfiltered ibm-db2    reset ttl 127
+61500/tcp unfiltered unknown    reset ttl 127
+== nmap -sA 10.40.0.197
+Nmap scan report for 10.40.0.197
+22/tcp    unfiltered ssh        reset ttl 127
+8080/tcp  unfiltered http-proxy reset ttl 127
+40000/tcp unfiltered safetynetp reset ttl 127
+50000/tcp unfiltered ibm-db2    reset ttl 127
+61500/tcp unfiltered unknown    reset ttl 127
+== owner firewall counters after the probes (nonzero)
+Chain PREROUTING (policy ACCEPT 233 packets, 127116 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     233   127116 NATPAIR_UNTRACK_IN  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain OUTPUT (policy ACCEPT 146 packets, 65289 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     146    65289 NATPAIR_UNTRACK_OUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain NATPAIR_UNTRACK_IN (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+      87    41690 CT         tcp  --  *      *       0.0.0.0/0            10.40.0.116          tcp dpts:32768:60999 CT notrack
+       4      660 CT         udp  --  *      *       10.40.0.0/16         10.40.0.116          udp dpts:32768:60999 CT notrack
+      10      800 CT         udp  --  *      *       10.40.0.197          10.40.0.116          udp dpt:3780 CT notrack
+Chain NATPAIR_UNTRACK_OUT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+     106    62033 CT         tcp  --  *      *       10.40.0.116          0.0.0.0/0            tcp spts:32768:60999 CT notrack
+      29     2816 CT         udp  --  *      *       10.40.0.116          10.40.0.0/16         udp spts:32768:60999 CT notrack
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     112    43598 NATPAIR_INPUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain NATPAIR_INPUT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+      14     1460 ACCEPT     all  --  *      *       10.40.0.0/16         0.0.0.0/0           
+      87    41690 ACCEPT     tcp  --  *      *       0.0.0.0/0            10.40.0.116          tcp dpts:32768:60999 flags:!0x17/0x02 ctstate UNTRACKED
+      11      448 REJECT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            reject-with tcp-reset
+	
+2026-11-13T02:23:24Z END 20261113T015525Z-medium-p2-ext-probe.sh rc=0
