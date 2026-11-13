@@ -135,6 +135,13 @@ natpair's operations guide describes. The jobs read the NAT type from the bench,
 replaces both NATs, the standby first, with a handover in between. On a first apply, use it once so the NATs
 register with SSM.
 
+Each NAT also samples pacing's limits map once a second (`limits.txt`, `pacing_limits` in the summary).
+[jobs/p2-s1-stable.sh](jobs/p2-s1-stable.sh) finds the highest stable unpaced TCP rate,
+[jobs/p2-overhead-parts.sh](jobs/p2-overhead-parts.sh) splits pacing's CPU cost into its qdisc, its programs and the
+pacing itself, [jobs/p2-s4b-burst-on.sh](jobs/p2-s4b-burst-on.sh) spends the burst with pacing on, and
+[jobs/p2-takeover.sh](jobs/p2-takeover.sh) checks which interface a new owner paces.
+[jobs/p3-baseline.sh](jobs/p3-baseline.sh) records the unpaced overload and takeover baselines for phase 3.
+
 ## A natpair dev build
 
 NATs download their release at first boot, so the archive must be in the bucket before they start. Create the bucket
