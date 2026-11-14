@@ -1,0 +1,21 @@
+standby i-03b3df578633fdbb8 ready
+owner i-0bb19ca4f2a11b227, shared 10.40.0.14
+shared dev ens6
+blackhole on at 13:02:08
+	Running timer as unit: bench-unblackhole-fwd.timer
+Will run service as unit: bench-unblackhole-fwd.service
+Running timer as unit: bench-unblackhole-out.timer
+Will run service as unit: bench-unblackhole-out.service
+
+owner moved to i-03b3df578633fdbb8 at 13:02:21
+	
+20261114T130138Z-c7gn.medium-fix-failover-1 | ens5 rx 18 pps 0.00 Gbps tx 422 pps 0.00 Gbps  | ens6 (shared) rx 59457 pps 0.66 Gbps tx 54282 pps 0.65 Gbps  | busy 0.07 cores soft 0.00 | 1160 ns/pkt | iperf 2.00 Gbps retr 486960 | sources_ok=True
+== old owner after the rule's removal
+0
+{"time":"2026-11-14T13:02:11.170976741Z","level":"INFO","msg":"health round","healthy":false,"copied":true,"ready":false,"peer_ready":true,"duration":1521800627,"serving":true,"probe_error":"probe upload timed out: failed to connect to probe receiver 44.238.153.130:443: dial tcp4 198.18.0.6:0->44.238.153.130:443: i/o timeout","table_full":false,"congested":false,"tracked_connections":66,"copied_co
+{"time":"2026-11-14T13:02:12.684322025Z","level":"INFO","msg":"health round","healthy":false,"copied":false,"ready":false,"peer_ready":true,"duration":1513201186,"serving":true,"probe_error":"probe upload timed out: failed to connect to probe receiver 32.188.102.226:443: dial tcp4 198.18.0.6:0->32.188.102.226:443: i/o timeout","table_full":false,"congested":false,"tracked_connections":66,"copied_c
+{"time":"2026-11-14T13:02:14.198083673Z","level":"INFO","msg":"health round","healthy":false,"copied":false,"ready":false,"peer_ready":true,"duration":1513725260,"serving":true,"probe_error":"probe upload timed out: failed to connect to probe receiver 32.191.175.147:443: dial tcp4 198.18.0.6:0->32.191.175.147:443: i/o timeout","table_full":false,"congested":false,"tracked_connections":66,"copied_c
+{"time":"2026-11-14T13:02:14.239478798Z","level":"WARN","msg":"ownership session ended","reason":"stepped down after corroborated path failure"}
+{"time":"2026-11-14T13:02:15.71206798Z","level":"INFO","msg":"health round","healthy":false,"copied":false,"ready":false,"peer_ready":true,"duration":1513948360,"serving":true,"probe_error":"probe upload timed out: failed to connect to probe receiver 44.238.153.130:443: dial tcp4 198.18.0.6:0->44.238.153.130:443: i/o timeout","table_full":false,"congested":false,"tracked_connections":66,"copied_co
+	
+2026-11-14T13:05:30Z END 20261114T124203Z-medium-fix-failover.sh rc=0

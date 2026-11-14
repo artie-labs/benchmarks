@@ -43,6 +43,14 @@ if [[ $role != nat ]]; then
   cat "/sys/class/net/$dev/mtu" > mtu.txt
 fi
 list_interfaces > interfaces-start.txt
+# Each ENI's receive and NIC drop counters, and the XDP program on it (natpair's overload guard), at the start and end
+# of the sampling. ENA counts receive-ring overflow in rx_over_errors, and other NIC drops and XDP drops in rx_dropped.
+nic_stats() {
+  local d
+  for d in /sys/class/net/ens*; do
+    echo "${d##*/} $(cat "$d/statistics/rx_packets") $(cat "$d/statistics/rx_dropped") $(ip -d link show dev "${d##*/}" | grep -o 'prog/xdp id [0-9]*' | awk '{print $3}') $(cat "$d/statistics/rx_over_errors")"
+  done
+}
 # Fetched every run, so a rebuilt enapoll reaches every host.
 aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/enapoll" "$base/enapoll" && chmod +x "$base/enapoll"
 
@@ -66,6 +74,8 @@ if [[ $role == nat ]]; then
   sys=/sys
   [[ -d /run/bench-sys/class/net ]] && sys=/run/bench-sys
   { grep -H . $sys/class/net/ens*/threaded | sed "s#^$sys/#/sys/#"; ps -eo ni,comm | grep 'napi/'; } > threaded.txt 2>&1
+  nic_stats > nic-start.txt
+  if [[ -e /var/lib/natpair/overload-guard-off ]]; then echo off; else echo on; fi > guard.txt
   # Connection table size and the kernel's conntrack drops, once a second, for as long as enapoll samples, so a run
   # stopped early ends here too.
   (
@@ -179,6 +189,7 @@ wait "$sampler"
 gzip -f enapoll.csv
 if [[ $role == nat ]]; then
   bpftool -j prog show > bpf-end.json 2> /dev/null
+  nic_stats > nic-end.txt
   # Which CPU each network queue's interrupt goes to. natpair spreads them, including after a takeover.
   for irq in $(grep -E 'ens[0-9]+-Tx-Rx' /proc/interrupts | cut -d: -f1); do
     echo "$(grep "^ *$irq:" /proc/interrupts | awk '{print $NF}') $(cat /proc/irq/$irq/effective_affinity_list)"

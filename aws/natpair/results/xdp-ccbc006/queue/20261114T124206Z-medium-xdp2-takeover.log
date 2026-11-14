@@ -1,0 +1,38 @@
+standby i-0bb19ca4f2a11b227 ready
+run 20261114T130554Z-c7gn.medium-xdp2-takeover-1: owner i-03b3df578633fdbb8, standby i-0bb19ca4f2a11b227, load at 2026-11-14T13:06:20Z
+Maintenance requested. An active NAT hands over once its peer passes its checks. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0ab5abbe25677811b
+	
+uploaded gen i-09960b67900c8d44b
+	
+uploaded nat i-03b3df578633fdbb8
+	
+uploaded nat i-0bb19ca4f2a11b227
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261114T130554Z-c7gn.medium-xdp2-takeover-1 | ens5 rx 15 pps 0.00 Gbps tx 19 pps 0.00 Gbps  | ens6 (shared) rx 1185437 pps 1.00 Gbps tx 339041 pps 0.29 Gbps  | busy 0.33 cores soft 0.00 | 281 ns/pkt | iperf 0.16 Gbps retr 0 | sources_ok=True
+owner before i-03b3df578633fdbb8, after i-0bb19ca4f2a11b227
+== i-0bb19ca4f2a11b227
+{"time":"2026-11-14T13:06:41.34617277Z","level":"INFO","msg":"ownership acquired","epoch":16,"copied_state_ready":true,"path_proven":true}
+{"time":"2026-11-14T13:06:47.055791191Z","level":"INFO","msg":"turned on threaded receive processing","interfaces":1}
+{"time":"2026-11-14T13:06:47.056037445Z","level":"INFO","msg":"overload guard watching","interface":"ens6"}
+{"time":"2026-11-14T13:06:49.296456133Z","level":"INFO","msg":"overload guard attached","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.476,"rx_ring":2048,"duration":40499248}
+{"time":"2026-11-14T13:06:49.455004436Z","level":"WARN","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.476,"measured_pps_per_cpu":601240,"budget_pps_per_cpu":5407
+{"time":"2026-11-14T13:06:50.454735775Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.206,"budget_pps_per_cpu":486373}
+{"time":"2026-11-14T13:06:50.773353739Z","level":"INFO","msg":"forwarding open","takeover":9427157116}
+{"time":"2026-11-14T13:06:51.455237122Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.218,"budget_pps_per_cpu":437736}
+{"time":"2026-11-14T13:06:52.454284632Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.137,"budget_pps_per_cpu":393867}
+{"time":"2026-11-14T13:07:20.955244096Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":0,"nic_drop_share":0.123,"budget_pps_per_cpu":353813}
+{"time":"2026-11-14T13:07:21.256017348Z","level":"INFO","msg":"overload guard cleared","interface":"ens6","busiest_cpu":0.034,"dropped":23323155}
+	
+== i-03b3df578633fdbb8
+{"time":"2026-11-14T13:06:20.357677523Z","level":"INFO","msg":"overload guard attached","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.422,"rx_ring":2048,"duration":42992435}
+{"time":"2026-11-14T13:06:20.513165975Z","level":"WARN","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.422,"measured_pps_per_cpu":502617,"budget_pps_per_cpu":4520
+{"time":"2026-11-14T13:06:21.5154261Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.26,"budget_pps_per_cpu":406265}
+{"time":"2026-11-14T13:06:22.520954738Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":0.966,"nic_drop_share":0.08,"budget_pps_per_cpu":365257}
+{"time":"2026-11-14T13:06:41.158127178Z","level":"WARN","msg":"ownership session ended","reason":"maintenance requested"}
+{"time":"2026-11-14T13:06:42.314352275Z","level":"INFO","msg":"overload guard stopped watching","interface":"ens6"}
+	
+2026-11-14T13:07:55Z END 20261114T124206Z-medium-xdp2-takeover.sh rc=0

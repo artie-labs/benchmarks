@@ -18,6 +18,8 @@
 #   PACING=keep|on|off     runs `natpair pacing-on` or `pacing-off` on both NATs before the run. keep leaves them.
 #   RXTHREADS=keep|on|off  natpair#13's control-plane priority on both NATs: off creates
 #                          /var/lib/natpair/receive-threads-off (threaded NAPI off within 5 s), on removes it
+#   GUARD=keep|on|off      natpair's XDP overload guard on both NATs: off creates /var/lib/natpair/overload-guard-off
+#                          (detached within 5 s), on removes it
 #   FLOOD=udp|syn FLOOD_PPS=1000000  the receiver floods the owner's own (primary) address with 64-byte UDP or TCP
 #                          SYNs from random ports, during the load (see flood/)
 #   TOGGLE_AT=             seconds into the load to run `natpair pacing-off` on the owner; pacing-on follows 20 s
@@ -38,10 +40,10 @@ name=$1
 shift
 MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2
 POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60 TARGET=private
-PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096 RXTHREADS=keep FLOOD= FLOOD_PPS=1000000
+PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096 RXTHREADS=keep FLOOD= FLOOD_PPS=1000000 GUARD=keep
 for kv in "$@"; do
   case "${kv%%=*}" in
-    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE | RXTHREADS | FLOOD | FLOOD_PPS) declare "$kv" ;;
+    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE | RXTHREADS | FLOOD | FLOOD_PPS | GUARD) declare "$kv" ;;
     *) echo "unknown setting: $kv" >&2; exit 2 ;;
   esac
 done
@@ -81,6 +83,9 @@ if [[ $RXTHREADS == on || $RXTHREADS == off ]]; then
   done
   # natpair applies the switch every 5 s.
   sleep 7
+fi
+if [[ $GUARD == on || $GUARD == off ]]; then
+  guard_switch "$GUARD"
 fi
 # The start time moved while switching, so the shared clock starts later too.
 if (($(date +%s) + 15 > start)); then
