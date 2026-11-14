@@ -1,0 +1,92 @@
+=== info 16:02:50
+== i-0d9a73141155e1890
+6.18.62-127.179.amzn2023.aarch64
+cad16c9e
+active
+active
+inactive
+"release":"v0.1.99"
+/sys/class/net/ens5/threaded:1
+/sys/class/net/ens6/threaded:1
+ens5-Tx-Rx-0 0
+ens6-Tx-Rx-0 0
+	
+== i-0a3ce6869c80934bc
+6.18.62-127.179.amzn2023.aarch64
+cad16c9e
+active
+active
+inactive
+"release":"v0.1.99"
+/sys/class/net/ens5/threaded:1
+ens5-Tx-Rx-0 0
+	
+=== smoke 16:02:59
+run 20261114T160259Z-c7gn.medium-final-smoke-tcp: owner i-0d9a73141155e1890, standby i-0a3ce6869c80934bc, load at 2026-11-14T16:03:24Z
+uploaded gen i-0c167a05f0ac35144
+	
+uploaded nat i-0d9a73141155e1890
+	
+uploaded nat i-0a3ce6869c80934bc
+	
+uploaded gen i-00bf96d2bf78b31d0
+	
+20261114T160259Z-c7gn.medium-final-smoke-tcp | ens5 rx 11 pps 0.00 Gbps tx 61771 pps 0.03 Gbps  | ens6 (shared) rx 836525 pps 9.42 Gbps tx 774783 pps 9.38 Gbps  | busy 1.00 cores soft 0.00 | 1195 ns/pkt | iperf 8.98 Gbps retr 340541 | sources_ok=True
+run 20261114T160406Z-c7gn.medium-final-smoke-churn: owner i-0d9a73141155e1890, standby i-0a3ce6869c80934bc, load at 2026-11-14T16:04:32Z
+uploaded gen i-0c167a05f0ac35144
+	
+uploaded nat i-0d9a73141155e1890
+	
+uploaded nat i-0a3ce6869c80934bc
+	
+uploaded gen i-00bf96d2bf78b31d0
+	
+20261114T160406Z-c7gn.medium-final-smoke-churn | ens5 rx 72 pps 0.00 Gbps tx 20667 pps 0.02 Gbps  | ens6 (shared) rx 36531 pps 0.12 Gbps tx 21244 pps 0.11 Gbps  | busy 0.29 cores soft 0.00 | 8059 ns/pkt | iperf 0.00 Gbps retr 0 | sources_ok=False
+=== handover 16:05:14
+standby i-0a3ce6869c80934bc ready
+run 20261114T160519Z-c7gn.medium-final-handover-1: owner i-0d9a73141155e1890, standby i-0a3ce6869c80934bc, load at 2026-11-14T16:05:44Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0c167a05f0ac35144
+	
+uploaded nat i-0d9a73141155e1890
+	
+uploaded nat i-0a3ce6869c80934bc
+	
+uploaded gen i-00bf96d2bf78b31d0
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261114T160519Z-c7gn.medium-final-handover-1 | ens5 rx 15 pps 0.00 Gbps tx 3553 pps 0.00 Gbps  | ens6 (shared) rx 173307 pps 1.97 Gbps tx 162735 pps 1.96 Gbps  | busy 0.12 cores soft 0.00 | 721 ns/pkt | iperf 2.00 Gbps retr 133002 | sources_ok=True
+standby i-0d9a73141155e1890 ready
+run 20261114T160714Z-c7gn.medium-final-handover-2: owner i-0a3ce6869c80934bc, standby i-0d9a73141155e1890, load at 2026-11-14T16:07:40Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0c167a05f0ac35144
+	
+uploaded nat i-0d9a73141155e1890
+	
+uploaded nat i-0a3ce6869c80934bc
+	
+uploaded gen i-00bf96d2bf78b31d0
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261114T160714Z-c7gn.medium-final-handover-2 | ens5 rx 15 pps 0.00 Gbps tx 3397 pps 0.00 Gbps  | ens6 (shared) rx 175900 pps 2.00 Gbps tx 165618 pps 2.00 Gbps  | busy 0.10 cores soft 0.00 | 568 ns/pkt | iperf 2.00 Gbps retr 118789 | sources_ok=True
+standby i-0a3ce6869c80934bc ready
+run 20261114T160930Z-c7gn.medium-final-handover-3: owner i-0d9a73141155e1890, standby i-0a3ce6869c80934bc, load at 2026-11-14T16:09:56Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0c167a05f0ac35144
+	
+uploaded nat i-0d9a73141155e1890
+	
+uploaded nat i-0a3ce6869c80934bc
+	
+uploaded gen i-00bf96d2bf78b31d0
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261114T160930Z-c7gn.medium-final-handover-3 | ens5 rx 14 pps 0.00 Gbps tx 5129 pps 0.00 Gbps  | ens6 (shared) rx 176194 pps 1.95 Gbps tx 161094 pps 1.94 Gbps  | busy 0.11 cores soft 0.00 | 613 ns/pkt | iperf 2.00 Gbps retr 260601 | sources_ok=True
+=== done 16:11:21
+2026-11-14T16:11:21Z END 20261114T160238Z-medium-final-1-info-smoke-handover.sh rc=0

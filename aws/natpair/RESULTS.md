@@ -887,3 +887,92 @@ empty with direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, p
 DynamoDB, Lambda, IAM). Only the unrelated benchmark-oracle instance and its own resources remain. To rerun, follow the
 README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a local checkout of the module,
 here `natpair.worktrees/release-xdp`, and `nat_kernel` picks the NATs' kernel line.
+
+# Final release candidate (2026-11-14)
+
+Build c3c3b5a from natpair's bench/final branch: master faaac9a with the merge-ready PR heads merged in the order they
+will land: #9 (8f467a1), #10 (4fb6494), #11 (b4e2ec9), #12 (0116724), #15 (b1187ff), #16 (a977169), #14 (a1f8eee) and
+#17 (7219dcb). No #8 (pacing) or #13. Built like the release workflow (goreleaser with the repository's config, Go
+1.26.0 from go.mod), tagged v0.1.99, tarball sha256 2ec679075399b0f53772031f9c30b08ed8aec4e3c2b4cef8ba24ea5089efcfed,
+binary cad16c9e. Module from the same commit (`natpair.worktrees/final`), default kernel line, fresh deploy at 16:00
+UTC. All five instances registered with SSM on the first boot (16:02:29), with no NAT replacement (#9). Both NATs ran
+6.18.62-127.179 (#14's default), irqbalance inactive, threaded NAPI on every ENI. c7gn.medium first, then both NATs
+resized in place to c7gn.large, the standby first. Job: [final-rc](jobs/final-rc.sh), one section per queued job, plus
+[fix-failover](jobs/fix-failover.sh). Runs: [results/final-c3c3b5a](results/final-c3c3b5a). 60 s runs, 3 per cell
+unless noted, median and range. Throughput is iperf3's received total, packet rates are the shared ENI's.
+
+References: the release candidate (RC, 671d06f, [Release candidate](#release-candidate-2026-11-14)), #16
+([Threaded NAPI on 6.18](#threaded-napi-on-618-2026-11-14)) and #17 ([XDP overload guard](#xdp-overload-guard-2026-11-14)),
+all on 6.18.62.
+
+| Check | c7gn.medium | c7gn.large | Verdict |
+| --- | --- | --- | --- |
+| First boot (#9), kernel (#14) | All five SSM Online by 16:02:29 on the first boot. 6.18.62-127.179, binary cad16c9e, `"release":"v0.1.99"`, natpair and conntrackd active, irqbalance inactive | Same kernel and binary after the in-place resize | pass |
+| Smoke | 20 s TCP 8.98 Gbps. 20 s churn 3,000/s, p99 3.3 ms, 0 failures | 18.14 Gbps. Churn 3,000/s, p99 2.3 ms | pass |
+| Interrupt spreading after 3 takeovers (#10) | 1 queue per ENI, on CPU 0 | Each new owner logged `spread network queue interrupts across the CPUs` (`moved`:2) within 1 s of its takeover. After the third: `ens5-Tx-Rx-0` and `ens6-Tx-Rx-0` on CPU 0, `-1` on CPU 1, the standby's ENI the same | pass |
+| Threaded NAPI on every ENI, also after a takeover (#16) | Every summary shows `threaded` 1 on both ENIs. Each new owner logged `turned on threaded receive processing` 5 to 8 s after `ownership acquired` and before `forwarding open` | Same, all 3 takeovers | pass |
+| TCP as fast as 32 flows go | 8.82 Gbps (8.80 to 8.99). #16: 8.92, #17: 8.90. 0 takeovers, 0 lease failures, 0 DNS timeouts, 0 to 2 failed probes, guard never engaged (NIC drop 2.0%) | 18.53 Gbps (18.29 to 18.63). #16: 18.17, #17: 18.72, RC: 18.94. 0 takeovers, 0 lease, 0 DNS, 0 to 2 failed probes, never engaged (NIC drop 0.9%) | pass |
+| TCP with 88-byte segments, 64 flows | 928k pps (922k to 930k). #16: 940k. 0 takeovers, 0 lease, 0 DNS, 2 to 5 failed probes, never engaged | 1.98M pps (1.97M to 1.99M). #16: 1.97M, RC (90 s): 2.10M. 0 takeovers, 0 lease, 0 DNS, 4 to 6 failed probes, never engaged | pass |
+| UDP 64 B at 800k pps | 0, 0, 0 takeovers. 0 lease, 0 DNS, 0 failed probes. Engaged and cleared once a run. 396k pps forwarded (394k to 427k), ping loss 76.1%. #17: 0 takeovers, 400k, 75.9% | 0, 0, 0 takeovers, 0 failed probes, never engaged (CPU not full), 795k forwarded, ping loss 1.6% | pass |
+| UDP 64 B at 1.2M pps | 0, 0, 0 takeovers. 0 lease, 0 DNS, 0 to 2 failed probes. Engaged and cleared once a run. 427k forwarded (396k to 429k), ping loss 49.2% (48.3 to 81.6). #17: 0 takeovers, 0 to 2 failed probes, 363k | 0, 0, 0 takeovers. 0 lease, 0 DNS, 0 to 2 failed probes. Engaged and cleared once a run. 861k forwarded (851k to 866k), ping loss 47.7%. #17 (1 run): 864k, 46.4% | pass |
+| Ring, nice and program after the guard clears | After all 7 engaged runs (incl. the congested handover): shared ENI ring 1,024 (2,048 while engaged), `napi/ens6-*` at nice 0, no XDP program | After all 3 engaged runs: ring 1,024, both `napi/ens6-*` threads at nice 0, no XDP program | pass |
+| 3,000 connections a second, 3 x 60 s | 3,000/s, 0 failures, p99 5.1 ms (4.5 to 6.1), table about 100k | 3,000/s, 0 failures, p99 9.9 ms (7.3 to 21.1), table about 100k. RC: 1.98 ms (1.96 to 2.02) | pass, but the large's p99 is 4 to 10 times the RC's (see below) |
+| 120 s churn with a forced full copy 60 s in | Table 97.6k before, 99.7k after, p99 7.1 ms, 0 failures, no step-down | 98.1k before, 99.7k after, p99 20.2 ms, 0 failures, no step-down | pass |
+| 1M pps UDP flood of the owner's own address, TCP at 4.5 (medium) or 10 Gbps (large) | 4.22 Gbps (3.59 to 4.43) against 4.48 without a flood (#16). 4 to 9 lease failures a run, and 2 of 3 runs lost the lease: `lease lost: another owner took the lease while the store was unavailable`, 1 takeover each. #16: 1 takeover in 6 runs, #17: 0 in 3 | 7.84 Gbps (7.84 to 8.09) against 9.98 without (#16: 8.36). 2 to 3 lease failures a run, 0 takeovers | large pass. Medium fail: known limit, see below |
+| SYN probes from the receiver to the shared and both own addresses (22, 8080, 40000, 50000, 61000, 61500, 62000, 65000), 3 rounds | No answer anywhere | No answer anywhere | pass |
+| ACK probes, same addresses and ports | Own addresses: no answer. Shared: a reset on 8080, 40000 and 50000 only | Same | pass |
+| 200 ACKs at 2,000/s to the shared address's port 40000 from one source, then 50/s for 10 s, 3 rounds | 51 resets in the burst, then 14 and 10 a second | Same | pass |
+| Planned handover at 2 Gbps (`natpair maintenance`, then `natpair resume`), 3 rounds | 1 takeover each, ping gap 9.2 s (9.1 to 10.5), 0 lease failures, 1 to 2 DNS timeouts | 1 takeover each, ping gap 8.0 s (7.4 to 11.5), 0 lease failures, 1 to 2 DNS timeouts. RC: 8.7 s (6.1 to 9.9) | pass |
+| Congested-owner handover: `natpair maintenance` 20 s into 1.2M pps UDP, guard engaged | Completed, 1 takeover, ping gap 9.3 s. The new owner turned on threaded NAPI, watched ens6, attached (ring 2,048) and engaged while its fence was still closed, then opened forwarding 8.7 s after acquiring. The old owner logged `overload guard stopped watching`. No program on either NAT afterwards | not run | pass |
+| Blackhole fail-over at 2 Gbps (fix-failover) | Blackhole 16:56:47, `stepped down after corroborated path failure` 16:56:52, standby acquired 16:56:52 and opened forwarding 16:57:02. Ping gap 15.2 s | Blackhole 18:23:25, stepped down 18:23:30, forwarding open on the standby 18:23:39. Ping gap 13.9 s | pass |
+| CPU per forwarded packet below saturation, 45 s, sampled once a second | TCP at 4 Gbps: 1,218 ns (1,209 to 1,318). #16: 1,202, before #16: 1,155. UDP at 300k pps: 2,034 (1,988 to 2,042). #16: 2,005, before #16: 1,923. Guard never engaged | TCP at 8 Gbps: 1,214 ns (1,192 to 1,285). #16: 1,191, before #16: 1,108. UDP at 400k pps: 1,980 (1,945 to 2,295). #16: 1,818 (1,802 to 2,217), before #16: 1,907 (1,835 to 2,160). Never engaged | pass: within 1 to 2% of #16 for TCP. The large's UDP is 9% over #16's median but inside both builds' spread |
+
+- **The merges change nothing the PR benches didn't show.** Every number lands within a few percent of the PR it
+  belongs to: full-rate TCP within 1 to 2% of #16 and #17 on both sizes, the guard's UDP behaviour as on #17's bench,
+  the firewall answers exactly as on the RC. The one code interaction found while merging, #17's guard step in the
+  takeover after #16's threaded NAPI step, ran in all 11 takeovers (7 on the medium, 4 on the large) and failed none.
+  The congested handover's log shows the order: threaded NAPI on, then the guard watching the shared ENI, then
+  forwarding open.
+- **The medium still loses its lease under a 1M pps flood of its own address.** 2 of 3 runs on the medium ended in a
+  takeover, against 1 in 6 on #16 and 0 in 3 on #17's bench, with the same mechanism each time: the flood arrives on the
+  primary ENI with the lease replies, renewals time out (`lease store unreachable, forwarding on while the shared ENI
+  stays here`, 4 to 9 a run), the lease expires, and the standby takes it (`lease lost: another owner took the lease
+  while the store was unavailable` at 16:46:27 and 16:50:26). Neither threaded NAPI nor the guard, which watches only
+  the shared ENI, covers that ENI, and the large rode it out. Fixing it needs a cheap drop on the primary ENI of what the
+  host firewall drops anyway, such as XDP, as the #16 section suggested. The
+  mechanism is the same as before the merges.
+- **The large's churn p99 is higher than the RC's.** 3,000 connections a second never failed, but p99 was 7.3 to 21.1 ms
+  against 1.9 to 2.0 on the RC (671d06f, no #16), while p50 rose only from 1.25 to 1.30 to 1.51 ms. The RC's maximum
+  was about 1 s (a SYN retransmit) in 3 of its 6 generator streams, and this build's never passed 99 ms. The forwarding
+  softirq time moved into the `napi/` threads (the owner's softirq share was 8 to 9% on the RC and 0 here), so the likely
+  cause is threaded NAPI's scheduling, which #16 accepted for the 6.18 starvation fix. Phase 3 measured 7 to 17 ms on
+  the large before the RC. Worth a look if a customer runs connection-heavy workers, not a blocker.
+- **Small notes.** Each planned handover logged 1 to 2 DNS timeouts, as the RC's did. The resize to c7gn.large took
+  longer than it needed: a readiness check in the local resize script piped into `grep -q`, which made it loop for
+  about 18 minutes while both NATs were already healthy (the bench sat idle on a medium and a large NAT, about $0.15).
+
+**Conflicts while merging, in merge order** (the same ones the PRs will hit when they land in this order):
+
+- #9: none.
+- #10, #11, #14: CHANGELOG only. Keep every entry, sections in Keep a Changelog order (Added, Changed, Fixed, Security).
+- #12: CHANGELOG, and both #11 and #12 add a function at the same spot in `internal/network/network.go`,
+  `network_linux_test.go` and `export_test.go`. Keep both.
+- #15: none (it is stacked on #12).
+- #16: CHANGELOG, `cmd/natpair/nat.go` and `main_test.go`. Keep #10's interrupt loop and #16's threaded NAPI loop as
+  separate goroutines, both imports, and both sets of tests.
+- #17: CHANGELOG, `nat.go`, `docs/architecture.md`, `docs/operations.md`, `network_test.go` and `test.Dockerfile`. Keep
+  both everywhere. `ActivateShared` runs #16's threaded NAPI step, returns if it fails, then `guard.Ensure`, since the
+  guard sets the nice value of the threads threaded NAPI creates. In the SNAT test, #17's shared-canary rule comes first.
+  The Dockerfile takes #17's package list (it adds iputils). One change beyond the conflicts: #16's two takeover tests
+  build `localSteps` without a guard, which panics on Linux once `ActivateShared` calls `guard.Ensure`
+  (`TestActivateSharedTurnsOnThreadedReceive`: nil pointer dereference), so they get a guard whose off switch exists.
+
+Cost of this deploy: 15:59 to 18:38 UTC, 2.65 h, about $1.91 (generators, receiver, IPv4 and EBS 1.40, NATs 0.49:
+medium 1.2 h, one of each 0.3 h, large 1.1 h, plus S3, DynamoDB and Lambda 0.02).
+
+## Status
+
+Destroyed on 2026-11-14 at 18:38 UTC after the final release candidate runs, and verified empty with direct describe
+calls in 473387995098: no bench instances (5 terminated), Elastic IPs, bench ENIs, volumes, VPCs, peering, endpoints,
+the bucket, DynamoDB tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle
+instance and its own volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final`.
