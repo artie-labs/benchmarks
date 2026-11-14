@@ -44,6 +44,11 @@ JOURNAL_PATTERNS = {
     "conntrack_nearly_full": r"connection table is nearly full",
     "counter_read_errors": r"failed to read allowance counters",
     "kernel_table_full": r"nf_conntrack: table full",
+    # natpair#15: a timed-out probe followed by handshakes that partly completed (congested, not counted), and
+    # health rounds that report it. path_check_failed: the handshakes couldn't be tried, so the round counted.
+    "path_alive": r"the health probe failed, but the path is alive",
+    "congested_rounds": r'"congested":true',
+    "path_check_failed": r"failed to check whether the path is alive",
 }
 
 
