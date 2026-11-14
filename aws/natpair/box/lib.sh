@@ -98,3 +98,14 @@ reset_pacing_caps() {
   wait_standby_ready
   echo "pacing caps reset: owner now $(owner_nat)"
 }
+
+# rx_switch on|off: natpair#13's control-plane priority on both NATs. off creates
+# /var/lib/natpair/receive-threads-off, which turns threaded NAPI off within 5 s; on removes it.
+rx_switch() {
+  local nat cmd="rm -f /var/lib/natpair/receive-threads-off"
+  [[ $1 == off ]] && cmd="touch /var/lib/natpair/receive-threads-off"
+  for nat in "$NAT_A" "$NAT_B"; do
+    on "$nat" 60 "$cmd" > /dev/null || echo "receive threads $1 failed on $nat"
+  done
+  sleep 7
+}

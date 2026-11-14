@@ -3,8 +3,8 @@ resource "aws_eip" "shared" {
   tags   = { Name = "${var.name}-shared" }
 }
 
-# Phase 2 runs pacing builds of natpair v0.1.99 from the unpushed branch bench/v0.1.99 (see RESULTS.md), so the
-# module comes from a local checkout of the same commit, which matches the build's install.sh and pacing input. The
+# Phases 2 and 3 run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes from a local checkout of the
+# same commit, which matches the build's install.sh. Phase 3's bench/simple module has no pacing input. The
 # path assumes this repo is at <workspace>/benchmarks.worktrees/<name> and natpair at
 # <workspace>/natpair.worktrees/bench-v0.1.99. Phase 1 used
 # git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
@@ -23,8 +23,6 @@ module "natpair" {
   release        = var.natpair_release
   release_sha256 = var.natpair_release_sha256
   release_url    = var.natpair_release_url
-
-  pacing = var.pacing
 }
 
 # The bench tools on the NATs (enapoll, mpstat) come from the bench bucket, and their output goes back to it. The

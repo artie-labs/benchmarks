@@ -16,6 +16,10 @@
 #   HANDOVER_AT=           seconds into the load to run `natpair maintenance` on the owner, then `natpair resume`
 #                          after the run
 #   PACING=keep|on|off     runs `natpair pacing-on` or `pacing-off` on both NATs before the run. keep leaves them.
+#   RXTHREADS=keep|on|off  natpair#13's control-plane priority on both NATs: off creates
+#                          /var/lib/natpair/receive-threads-off (threaded NAPI off within 5 s), on removes it
+#   FLOOD=udp|syn FLOOD_PPS=1000000  the receiver floods the owner's own (primary) address with 64-byte UDP or TCP
+#                          SYNs from random ports, during the load (see flood/)
 #   TOGGLE_AT=             seconds into the load to run `natpair pacing-off` on the owner; pacing-on follows 20 s
 #                          later
 #   MODE=fair LIGHT_RATE=100M  one heavy worker and four light ones from distinct addresses (see host.sh)
@@ -34,10 +38,10 @@ name=$1
 shift
 MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2
 POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60 TARGET=private
-PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096
+PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096 RXTHREADS=keep FLOOD= FLOOD_PPS=1000000
 for kv in "$@"; do
   case "${kv%%=*}" in
-    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE) declare "$kv" ;;
+    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE | RXTHREADS | FLOOD | FLOOD_PPS) declare "$kv" ;;
     *) echo "unknown setting: $kv" >&2; exit 2 ;;
   esac
 done
@@ -69,6 +73,22 @@ if [[ $PACING == on || $PACING == off ]]; then
   sleep 3
 fi
 
+if [[ $RXTHREADS == on || $RXTHREADS == off ]]; then
+  switch="rm -f /var/lib/natpair/receive-threads-off"
+  [[ $RXTHREADS == off ]] && switch="touch /var/lib/natpair/receive-threads-off"
+  for nat in "$NAT_A" "$NAT_B"; do
+    on "$nat" 60 "$switch" > /dev/null || echo "receive threads $RXTHREADS failed on $nat"
+  done
+  # natpair applies the switch every 5 s.
+  sleep 7
+fi
+# The start time moved while switching, so the shared clock starts later too.
+if (($(date +%s) + 15 > start)); then
+  start=$(($(date +%s) + 20))
+  load_at=$((start + PRE))
+  common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF RECEIVER_IP=$receiver_ip"
+fi
+
 echo "run $run: owner $owner, standby $standby, load at $(date -u -d "@$load_at" +%FT%TZ)"
 declare -A commands
 for nat in "$owner" "$standby"; do
@@ -86,6 +106,16 @@ done
 env $common INTERVAL=$RPOLL PING=0 GEN_INDEX=0 BUCKET=$BUCKET AWS_REGION=$AWS_REGION \
   bash ./host.sh recv > "/tmp/natpair-bench-recv-$run.log" 2>&1 &
 recv_pid=$!
+
+flood_pid=
+if [[ -n $FLOOD ]]; then
+  owner_ip=$(aws ec2 describe-instances --instance-ids "$owner" --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text)
+  (
+    sleep "$((load_at - $(date +%s)))"
+    ./bin/flood -target "$owner_ip" -mode "$FLOOD" -pps "$FLOOD_PPS" -duration "${DURATION}s" -out "/tmp/natpair-bench-flood-$run.json"
+  ) &
+  flood_pid=$!
+fi
 
 stopped_at=
 if [[ -n $STOP_BELOW_GBPS ]]; then
@@ -153,6 +183,8 @@ if [[ -n $STOP_BELOW_GBPS ]]; then
   [[ -f $stop_file ]] && stopped_at=$(cat "$stop_file")
 fi
 
+[[ -n $flood_pid ]] && { wait "$flood_pid" || echo "flood failed"; }
+
 if [[ -n $HANDOVER_AT ]]; then
   on "$owner" 120 "natpair resume" || echo "natpair resume failed on $owner"
   resume_done=$(date +%s.%N)
@@ -168,10 +200,14 @@ python3 -I -c 'import json, sys; print(json.dumps(dict(a.split("=", 1) for a in 
   handover_sent="$handover_sent" handover_done="$handover_done" resume_done="$resume_done" stopped_at="$stopped_at" toggle_off="$toggle_off" toggle_on="$toggle_on" \
   MODE="$MODE" PROCS="$PROCS" STREAMS="$STREAMS" RATE="$RATE" MSS="$MSS" LEN="$LEN" DURATION="$DURATION" PRE="$PRE" \
   POST="$POST" PATTERN="$PATTERN" ON="$ON" OFF="$OFF" POLL="$POLL" GPOLL="$GPOLL" RPOLL="$RPOLL" PING="$PING" \
-  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" PACING="$PACING" LIGHT_RATE="$LIGHT_RATE" CHURN_RATE="$CHURN_RATE" CHURN_SIZE="$CHURN_SIZE" \
+  HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" PACING="$PACING" RXTHREADS="$RXTHREADS" FLOOD="$FLOOD" FLOOD_PPS="$FLOOD_PPS" LIGHT_RATE="$LIGHT_RATE" CHURN_RATE="$CHURN_RATE" CHURN_SIZE="$CHURN_SIZE" \
   > "$dir/meta.json"
 aws s3 cp --only-show-errors "$dir/meta.json" "s3://$BUCKET/runs/$run/meta.json"
 aws s3 sync --only-show-errors "s3://$BUCKET/runs/$run/" "$dir/"
+if [[ -f /tmp/natpair-bench-flood-$run.json ]]; then
+  cp "/tmp/natpair-bench-flood-$run.json" "$dir/flood.json"
+  aws s3 cp --only-show-errors "$dir/flood.json" "s3://$BUCKET/runs/$run/flood.json"
+fi
 mkdir -p "$RESULTS"
 python3 -I ./analyze.py "$dir" > "$RESULTS/$run.json"
 aws s3 cp --only-show-errors "$RESULTS/$run.json" "s3://$BUCKET/results/$run.json"

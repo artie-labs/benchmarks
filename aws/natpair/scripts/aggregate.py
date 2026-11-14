@@ -88,7 +88,7 @@ def owner_metrics(s, window):
     for k in ("max_count", "drop", "early_drop", "insert_failed"):
         if k in ct:
             m["conntrack_" + k] = ct[k]
-    for k in ("pacing_cut_allowance", "pacing_cut_cpu", "pacing_stopped_cutting", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
+    for k in ("probe_errors", "conntrack_full", "pacing_cut_allowance", "pacing_cut_cpu", "pacing_stopped_cutting", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
               "conntrack_nearly_full", "counter_read_errors", "stepped_down"):
         if journal.get(k):
             m["journal_" + k] = journal[k]
@@ -139,6 +139,15 @@ def owner_metrics(s, window):
                         m["generator_" + c.replace("_allowance_exceeded", "_drops")] = m.get("generator_" + c.replace("_allowance_exceeded", "_drops"), 0) + r[c]
     if "sources_ok" in s:
         m["sources_ok"] = s["sources_ok"]
+    if s.get("flood"):
+        m["flood_sent_pps"] = round(s["flood"]["sent_pps"])
+    takeovers = sum(((h.get("journal") or {}).get("counts") or {}).get("ownership_acquired", 0) for h in s["hosts"].values())
+    m["takeovers"] = takeovers
+    threads = (owner.get("threaded") or {}).get("threaded") or {}
+    if threads:
+        m["threaded_napi"] = all(v == "1" for v in threads.values())
+    if owner.get("kernel"):
+        m["kernel_" + owner["kernel"].split("-")[0]] = True
     return m
 
 

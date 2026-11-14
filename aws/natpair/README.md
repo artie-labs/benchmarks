@@ -142,6 +142,18 @@ pacing itself, [jobs/p2-s4b-burst-on.sh](jobs/p2-s4b-burst-on.sh) spends the bur
 [jobs/p2-takeover.sh](jobs/p2-takeover.sh) checks which interface a new owner paces.
 [jobs/p3-baseline.sh](jobs/p3-baseline.sh) records the unpaced overload and takeover baselines for phase 3.
 
+Phase 3 tests natpair#13 (control-plane priority). `run.sh` takes `RXTHREADS=on|off` (or a job calls `rx_switch`
+from [box/lib.sh](box/lib.sh)), and `FLOOD=udp|syn FLOOD_PPS=...`, which floods the owner's own address from the
+receiver with [flood](flood) during the load. Jobs: [p3-starve](jobs/p3-starve.sh) (`RX=off` or `RX=on` on its first
+line), [p3-cost](jobs/p3-cost.sh), [p3-flood](jobs/p3-flood.sh) and [p3-checks](jobs/p3-checks.sh).
+
+After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
+`[Install]` section), so start them by hand:
+
+```sh
+./scripts/onbox.sh <receiver id> 60 'systemctl start churn-server natpair-bench-queue; for p in $(seq 5201 5232); do systemctl start iperf3@$p; done'
+```
+
 ## A natpair dev build
 
 NATs download their release at first boot, so the archive must be in the bucket before they start. Create the bucket

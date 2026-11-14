@@ -467,24 +467,75 @@ setup. It is far inside the large's 30 Gbps burst, and no allowance counter move
 no run took over. That differs from phase 1 (v0.1.1, kernel 6.18), where every unlimited UDP run flapped, and from
 081f24b on 6.18, where the same 88-byte overload took 1 to 2 takeovers a run with 13 lease failures. Since then the
 NAT's own traffic left conntrack (081f24b, 5f72e81) and the kernel changed to 6.1, and this bench can't separate the
-two. A test of the new design should first reproduce the flap: pin kernel 6.18 (bug 10), or run longer or harder,
-such as small UDP above the CPU limit for 10 minutes, which flapped 7 times on the phase 1 large.
+two. Small UDP above the CPU limit does still flap on kernel 6.1: see the bench/simple runs below.
 
-## Resume
+## bench/simple and natpair#13 (2026-11-13)
 
-The stack is **stopped, not destroyed** (2026-11-13 06:15 UTC): both NATs are c7gn.large on b43be20 with pacing off,
-the bucket holds the b43be20 release at `natpair/v0.1.99/`, and `tf/terraform.tfvars` points at it. Stopped, it
-costs about $0.01 an hour (the shared Elastic IP and five 8 GB volumes).
+Build 3438994 from natpair's bench/simple branch (natpair#9 to #12 merged, plus #13, no pacing; sha256
+4c1b7152…cbd0, still tagged v0.1.99), module from the same commit, kernel 6.1.190 on every run. #13 gives natpair's
+own work priority over forwarding: threaded NAPI on every interface, `natpair.slice` at CPUWeight=1000, and the
+primary ENI's receive threads at nice -10. While `/var/lib/natpair/receive-threads-off` exists, threaded NAPI is
+off, which is how the bench turns #13 off (`rx_switch` in [box/lib.sh](box/lib.sh)). Each summary records the
+interfaces' `threaded` value and the receive threads' nice values. Runs: [results/p3-simple-3438994](results/p3-simple-3438994).
+Medians of 3 runs, range in parentheses.
 
-```sh
-aws ec2 start-instances --instance-ids <the five bench=natpair instances>
-# generators and the receiver stop 4 hours after each boot. The NATs don't, so run shutdown -h +240 on them
-```
+The module's AMI filter matched three kernel lines (6.1, 6.12, 6.18) with the same creation time, so the bench
+pinned `kernel-6.1` in its local module checkout (bug 10). Starvation reproduced on 6.1, so the 6.18 repeat was
+skipped.
 
-For a new build: copy the tarball to `s3://<bucket>/natpair/v0.1.99/natpair_linux_arm64.tar.gz` (or a new tag),
-set `natpair_release_sha256`, check out the build's module in `natpair.worktrees/bench-v0.1.99`, `terraform
--chdir=tf apply`, then `./scripts/replace-nats.sh`. On a first apply, replace-nats.sh stops at `natpair maintenance`
-because the old owner never registered with SSM: replace that NAT with `terraform apply -replace` instead.
+| Step | Check | Result | Verdict |
+| --- | --- | --- | --- |
+| 1 | Starvation with #13 off, c7gn.large | UDP 64 B at 1.2M pps (both CPUs full): failed probes in every run (6 to 18 health rounds), 3 takeovers in 1 of 3 runs, 5 DNS or probe timeouts, ping loss 38.5% (1.9 to 61%). UDP 800k (84% CPU), 88 B TCP and full-size TCP (18.4 Gbps) at 100% CPU: 0 takeovers, 1 to 2 failed probes a run | reproduced |
+| 1 | Starvation with #13 off, c7gn.medium | UDP 800k pps: 2 to 3 takeovers in every run, 17 to 22 failed probes, ping loss 64%. UDP 1.2M: 3 to 4 takeovers in every run, 13 to 21 DNS or probe timeouts, ping loss 85%. 88 B TCP (890k pps) and full-size TCP (8.74 Gbps) at 100% CPU: 0 takeovers, 1 failed probe a run | reproduced, strongly |
+| 2 | Same cases with #13 on, c7gn.large | UDP 1.2M: 0 takeovers in 3 runs, but failed probes in every run (11 to 13 health rounds), ping loss 24.9% (19 to 28%). Other cases: 0 takeovers, 1 to 3 failed probes a run | partial: no takeovers in 3 runs, probes still fail |
+| 2 | Same cases with #13 on, c7gn.medium | UDP 800k: 2 to 3 takeovers in every run, ping loss 67%. UDP 1.2M: 3 to 4 takeovers in every run, ping loss 87%. TCP cases: 0 takeovers, 2 to 4 failed probes a run | fail: no improvement |
+| 3 | Cost below saturation, c7gn.large | TCP at 8 Gbps: 1,201 to 1,248 ns per packet (+4%). UDP 64 B at 400k pps: 2,020 to 2,100 ns (+4%). Most TCP: 18.65 Gbps (18.58 to 18.70) off, 18.02 (18.00 to 18.03) on (-3.4%) | small cost |
+| 3 | Cost below saturation, c7gn.medium | Not run: the instances auto-stopped during a session outage before the job finished | not measured |
+| 4 | 1M pps flood of the owner's own address, c7gn.large, while forwarding TCP at 10 Gbps | No flood: 9.97 Gbps off, 9.98 on. UDP flood: 7.75 Gbps (7.55 to 7.75) off, 4.17 (4.08 to 4.17) on. SYN flood: 8.02 (8.00 to 8.05) off, 5.06 (4.95 to 5.06) on. Off: 1 to 4 `lease store unreachable` a run. On: no lease failures, 2 to 5 failed probes. 0 takeovers either way | fail: with #13 on, a flood to the NAT's own address takes 37 to 46% more of forwarding |
+| 4 | The same flood, c7gn.medium, while forwarding TCP at 4.5 Gbps | No flood: 4.48 Gbps both ways. UDP flood: 3.69 Gbps (3.62 to 4.05) off, 0.73 (0.73 to 0.77) on. SYN flood: 3.74 (3.12 to 4.46) off, 0.79 (0.75 to 0.79) on. Off: 1 to 9 `lease store unreachable` a run, and 1 takeover in each SYN run. On: 2 to 5 lease failures, 0 takeovers | fail: with #13 on, the flood cuts forwarding by 80% |
+| 5 | 3,000 connections a second, 3 runs, c7gn.large | 3,000/s, 0 failures, p99 7.0 to 16.7 ms. The table held about 100k entries (TIME_WAIT 30 s) | pass: bug 9's seconds-long p99 is gone |
+| 5 | Forced full copy at 3,000/s for 120 s | Table 97.5k of 262,144 before and 97.7k after the copy, 0 step-downs, p99 6.2 ms. The table never filled, so no `connection table is full` line to check | pass on step-down; the full-table alert was not reached |
+| 5 | Takeover at 2 Gbps, 3 rounds | 1 takeover a run as requested, ping gap 9.8 s (8.2 to 9.9), receiver gap 13.0 s | pass |
+| 5 | SYN and ACK probes from the receiver to the shared address and both own addresses, ports 22, 8080, 61500 and 40000, 50000 | SYN: no response from any address or port. ACK: no response from the own addresses, a reset from the shared address on every port | pass, as expected |
 
-Tear down: `terraform -chdir=tf destroy`, then check instances, addresses, network interfaces and peering directly,
-as the README says.
+- **On the single-CPU medium, #13 changed nothing.** It was active (`threaded` 1 on both ENIs, the primary ENI's
+  receive thread at nice -10), and the pair flapped 2 to 4 times a run under small UDP either way. The step-downs
+  come from the path probe, which leaves through the shared Elastic IP like worker traffic and so sits in the same
+  saturated queue. Lease and DNS traffic does get through with #13, but the probe correctly reports that the
+  forwarding path is failing:
+
+  ```
+  18:30:00 owner   health round "healthy":false, "probe_error":"failed to connect to probe receiver ..."
+  18:30:02 owner   ownership session ended "reason":"stepped down after corroborated path failure"
+  18:30:20 standby ownership session ended "reason":"stepped down after corroborated path failure"
+  ```
+
+- **What #13 bought.** At the load that starved the owner (1.2M pps of small UDP on the large), #13 kept every run
+  free of takeovers where off had a 3-takeover run, and ping loss through the NAT fell from 38.5% to 25% (medians). But the owner still failed
+  probes in every run: the probes go out through the shared Elastic IP, translated like worker traffic, so they wait
+  behind the same forwarding queue #13 deprioritizes. One flapping run in three is thin evidence either way.
+- **What #13 costs.** About 4% CPU per packet below saturation and 3% of the large's top TCP rate.
+- **The risk is real.** A flood to the owner's own address now outranks forwarding: at 1M pps it cut forwarding to
+  4.2 to 5.1 Gbps with #13 on, against 7.8 to 8.0 Gbps off, on the large, and to 0.7 to 0.8 Gbps against 3.7 Gbps
+  on the medium. With #13 off the same flood starved the lease instead
+  (1 to 9 `lease store unreachable` a run), which #13 fixed on the large and reduced on the medium (2 to 5). Only sources inside the VPC or a peered network reach the
+  own address: the bench flooded from the peered receiver. SYN and ACK probes got no answer from the own addresses,
+  but the flood still costs CPU before the firewall drops it.
+
+### Recommendation on #13: drop it
+
+- On the medium, where starvation reproduced every run, #13 made no difference: 2 to 4 takeovers a run either way.
+- On the large, it removed the one flapping run of three at 1.2M pps, but probes still failed in every run.
+- It costs about 4% CPU per packet and 3% of top throughput.
+- It lets anyone who can reach the owner's own address take forwarding capacity: 37 to 46% on the large and 80% on
+  the medium at 1M pps.
+- The flaps come from the path probe, which shares the forwarding queue by design. Raising the control plane's
+  priority can't fix that. Worth trying instead: corroborating a probe failure against the forwarding rate, so a
+  saturated but working owner doesn't step down to a peer that will saturate the same way.
+
+## Status
+
+Torn down on 2026-11-13 after phase 3 (see the cost log). To rerun, follow the README's Deploy section with the
+build and module of choice. On a first apply, `replace-nats.sh` stops at `natpair maintenance` because the old owner
+never registered with SSM. Replace that NAT with `terraform apply -replace` instead. The bench/simple module
+registers SSM before boot, so this may no longer happen.

@@ -75,14 +75,3 @@ variable "igw_check" {
   type        = bool
   default     = false
 }
-
-variable "pacing" {
-  description = "natpair's pacing input, passed through. NATs read it at first boot. On a running NAT, `natpair pacing-off` and `pacing-on` switch it, which run.sh does with PACING=off|on."
-  type = object({
-    enabled          = optional(bool, false)
-    start_mbps       = optional(number)
-    start_kpps       = optional(number)
-    poll_interval_ms = optional(number)
-  })
-  default = {}
-}
