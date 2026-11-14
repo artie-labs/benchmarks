@@ -52,13 +52,15 @@ stack when done.
 
 ```sh
 cp tf/terraform.tfvars.example tf/terraform.tfvars   # set aws_profile
-./scripts/build.sh                                   # builds box/bin/enapoll for arm64
+./scripts/build.sh                                   # builds enapoll, churn, flood and the XDP test programs
 terraform -chdir=tf init
 terraform -chdir=tf apply
 ```
 
-On a first apply, the NATs boot before the module attaches their IAM policy, and their SSM agent never registers.
-Replace each NAT once, the standby first, so they boot with the policy in place (see natpair's
+With a module older than natpair's bench/release-udp (7f4124b), the NATs boot before the module attaches their IAM
+policy on a first apply, and their SSM agent never registers. Newer modules attach the boot policy first, and all five
+instances registered on the 2026-11-14 deploy. If a NAT doesn't come online, replace each NAT once, the standby first,
+so they boot with the policy in place (see natpair's
 [Replace a NAT](https://github.com/artie-labs/natpair/blob/master/docs/operations.md#replace-a-nat)):
 
 ```sh
@@ -152,6 +154,15 @@ probes) and [rc-udp](jobs/rc-udp.sh) (small-UDP overload). [box/ackburst.py](box
 without a connection and counts the resets that come back. [rc-kernel-ab](jobs/rc-kernel-ab.sh) repeats the
 saturation runs on another kernel line (`nat_kernel` in `terraform.tfvars`), and [fix-failover](jobs/fix-failover.sh)
 blackholes the owner's shared path to check that it still steps down.
+
+The kernel 6.18 and XDP checks are [k-prof](jobs/k-prof.sh), which profiles the owner during full-rate TCP and idle
+with [box/prof.sh](box/prof.sh) (perf on every CPU with call stacks, perf trace, strace and /proc snapshots, in
+`s3://<bucket>/runs/prof/`), [xdp-ena](jobs/xdp-ena.sh), which attaches the programs in [xdp](xdp) to the standby's
+primary ENI with [box/xdp.sh](box/xdp.sh) while the receiver floods it, and [b-medium](jobs/b-medium.sh), rc-udp plus
+full-rate TCP. Prepend `KERNEL=...` (and `EXTRA=1` for k-prof's two cause checks) or `BUILD=...` to the job file to
+name the runs. [scripts/prof-summary.py](scripts/prof-summary.py), [scripts/prof-snaps.py](scripts/prof-snaps.py) and
+[scripts/xdp-summary.py](scripts/xdp-summary.py) summarize their files. The XDP programs need a clang with the BPF
+target, such as `CLANG=/opt/homebrew/opt/llvm/bin/clang ./scripts/build.sh`.
 
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
