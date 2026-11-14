@@ -724,9 +724,66 @@ second throughout and the receiver flooded the standby's address with 64-byte UD
   ENI it belongs before forwarding opens at a takeover, not on a serving owner. The restart cost no measurable ping gap
   here, but it was measured on an idle interface.
 
+# Threaded NAPI on 6.18 (2026-11-14)
+
+Build 707894d from natpair's bench/release-napi branch: bench/release-udp (7f4124b, natpair#15) plus natpair#16,
+which writes 1 to `/sys/class/net/<interface>/threaded` for every ENI at start, right after the shared ENI comes up
+during a takeover, and every 5 s. No nice values, CPU weights or slices. Tagged v0.1.99, tarball sha256
+e77b7052c145c9ff84809e1fdb7de1991a35f97a83ca0301a62df1672d9e9a96, binary 06d2f17e. Module from the same commit,
+fresh deploy, both NATs on 6.18.62-127.179. All five instances registered with SSM on the first boot. c7gn.large
+first, then both NATs resized in place to c7gn.medium. Jobs: [napi-sat](jobs/napi-sat.sh),
+[napi-flood](jobs/napi-flood.sh), [napi-cost](jobs/napi-cost.sh), [fix-failover](jobs/fix-failover.sh). Runs:
+[results/napi-707894d](results/napi-707894d). Medians of 3 runs of 60 s, range in parentheses. Every summary's
+`threaded` shows 1 on both ENIs except napi-cost's off runs.
+
+The comparisons are the release candidate (671d06f, [Release candidate](#release-candidate-2026-11-14)) and natpair#15
+(7f4124b, the base of this build, [natpair#15](#natpair15-a-congested-path-keeps-its-owner-2026-11-14)), both on
+6.18.62, and for the medium also 7f4124b on 6.1.190 ([natpair#15 on c7gn.medium, kernel
+6.1](#natpair15-on-c7gnmedium-kernel-61)). The RC's 88-byte runs lasted 90 s, these 60 s.
+
+| Load | #16, c7gn.large | RC or #15, c7gn.large, 6.18 | #16, c7gn.medium | c7gn.medium references |
+| --- | --- | --- | --- | --- |
+| TCP as fast as 32 flows go | 18.17 Gbps (18.06 to 18.21), 0 takeovers, 0 lease failures, 0 DNS timeouts, 0 to 4 failed probes, daemon 1.0% of a CPU | RC: 18.94 Gbps, 0 takeovers, 7 to 10 lease failures, 28 to 30 DNS or probe timeouts, daemon 26 to 29% | 8.92 Gbps (8.86 to 8.98), 0 takeovers, 0 lease, 0 DNS, 1 to 3 failed probes, daemon 0.6% | 6.1: 8.71 Gbps, 0 lease, 0 DNS |
+| TCP with 88-byte segments, 64 flows | 1.97M pps (1.96M to 1.99M), 0 takeovers, 0 lease, 0 DNS, 1 to 3 failed probes, daemon 0.9% | RC (90 s): 2.10M pps, 11 to 14 lease failures, 35 to 41 DNS or probe timeouts | 940k pps (930k to 943k), 0 takeovers, 0 lease, 0 DNS, 2 to 4 failed probes | Phase 3, 6.1: 881k pps |
+| UDP 64 B at 800k pps | 795k forwarded, 0 takeovers, 0 lease, 0 DNS, 0 to 2 failed probes, ping loss 1.8% (1.6 to 2.0) | #15: 800k, 0 takeovers, ping loss 0.07% | Takeovers 1, 2, 0. 515k forwarded (71k to 517k), 0 lease, 0 to 7 DNS, 18 to 27 failed probes, ping loss 51.7% (26.8 to 63.0) | #15 on 6.18: 4 takeovers every run, 213k, 77.1%. 6.1: 0 to 1 a run, 525k, 56.0% |
+| UDP 64 B at 1.2M pps | 965k forwarded (892k to 1.01M), 0 takeovers, 0 lease, 0 DNS, 1 to 14 failed probes, ping loss 24.6% (1.7 to 28.7), longest gap 0.18 s | #15: 1.02M, 0 takeovers, 0 to 11 lease failures, ping loss 40.7%. RC: 2 to 3 takeovers a run | Takeovers 2, 1, 0. 516k forwarded (213k to 536k), 0 lease, 0 to 19 DNS, 19 to 28 failed probes, ping loss 65.6% (27.0 to 84.0) | #15 on 6.18: 3 to 4 a run, 183k, 89.0%. 6.1: 1 to 2 a run, 524k, 79.1% |
+| 1M pps flood of the owner's own address over the peering, TCP at 10 Gbps (large) or 4.5 Gbps (medium) | No flood 9.98 Gbps. UDP flood 8.36 (8.35 to 8.37), SYN flood 8.43 (8.34 to 8.72). 1 to 5 lease failures a run, 0 DNS, 0 takeovers | Phase 3, 6.1: UDP 7.75 off and 4.17 with #13, SYN 8.02 and 5.06. 1 to 4 lease failures off, 0 with #13 | No flood 4.48 Gbps. UDP 4.30 (4.15 to 4.32), SYN 4.39 (4.30 to 4.48). 5 to 12 lease failures a run, 1 takeover in 6 runs | Phase 3, 6.1: UDP 3.69 off and 0.73 with #13, SYN 3.74 and 0.79. 1 to 9 lease failures off |
+| CPU per forwarded packet below saturation, threaded NAPI off then on, same NAT | TCP at 8 Gbps: 1,108 ns (1,098 to 1,115) off, 1,191 (1,172 to 1,223) on, +7.5%. UDP at 400k pps: 1,907 (1,835 to 2,160) off, 1,818 (1,802 to 2,217) on, within the noise | | TCP at 4 Gbps: 1,155 (1,146 to 1,165) off, 1,202 (1,191 to 1,211) on, +4.1%. UDP at 300k pps: 1,923 (1,922 to 1,940) off, 2,005 (1,987 to 2,009) on, +4.3% | Phase 3, 6.1, large, #13: +4% |
+
+- **It fixes the 6.18 starvation.** In all 24 saturated runs, the owner never failed a lease renewal and, except under
+  small UDP on the medium, never timed out a DNS lookup. The daemon used 0.6 to 1.7% of a CPU, against 26 to 31% on the
+  RC. In the TCP runs enapoll on the owner missed no samples (the RC missed 18 to 26 s a run). The large took no takeover in 12 runs,
+  where the RC took 2 to 3 in every 1.2M pps UDP run.
+- **What it costs.** At full load the large forwards 4% less TCP (18.17 against 18.94 Gbps) and 6% fewer 88-byte
+  packets. Below saturation each packet costs 4 to 7.5% more CPU, except UDP on the large, whose spread hid any change.
+  That is close to #13's +4% on 6.1, so most of #13's cost was threaded NAPI itself, not its priority changes.
+- **Measuring the cost on one build.** #16 has no off switch, so napi-cost's off runs wrote 0 to each ENI's `threaded`
+  on the owner and bind-mounted a file holding 1 over it, so the daemon read 1 and wrote nothing. A second sysfs mount
+  showed the real value, 0, which each summary records. Removing the mounts let the daemon turn it back on within 5 s.
+  The owner didn't change during the job.
+- **The medium still flaps under small UDP.** 6 takeovers in 6 runs, the same as 6.1 and far fewer than #15's 23 on
+  6.18. All 6 ended sessions were path failures (5 `stepped down after corroborated path failure`, 1 `takeover failed:
+  failed to verify the shared Elastic IP`), none a lost lease. The medium forwarded about 516k pps, as on 6.1, against
+  183k to 213k for #15 on 6.18. So on one vCPU the remaining flaps come from the path probe sharing the saturated
+  forwarding path, as phase 3 found on 6.1: the owner's probe and #15's handshakes fail for seconds at a time, and the
+  standby saturates the same way when it takes over. Fixing that needs the owner to shed load before the probe's
+  packets, such as an XDP overload guard on the shared ENI, or a probe that doesn't count local overload.
+- **A flood of the own address no longer outranks forwarding.** Forwarding kept 84 to 87% of its rate on the large
+  and 93 to 100% on the medium, better than 6.1 without #13 and far better than #13. But the owner still failed 1 to 5
+  lease renewals a run on the large and 5 to 12 on the medium, and one medium run lost its lease (`another owner took
+  the lease while the store was unavailable`). The daemon used under 1.3% of a CPU, so this isn't starvation: the
+  lease replies arrive on the primary ENI with the flood. An XDP drop of traffic the host firewall would drop anyway,
+  on the primary ENI, would protect them.
+- **A dead path still fails over.** With TCP at 2 Gbps on the large, the owner dropped everything it sent through the
+  shared ENI outside the VPC from 08:57:45. It stepped down at 08:57:49 (`stepped down after corroborated path
+  failure`). The new owner turned on threaded NAPI for the shared ENI at 08:57:57 and opened forwarding at 08:58:00.
+  Ping gap 15.9 s, 1 takeover, both rules removed afterwards.
+- **The shared ENI gets threaded NAPI at every takeover.** Each new owner logged `turned on threaded receive
+  processing` within a second of the ENI coming up, before `forwarding open`, and every summary showed 1 on both ENIs.
+
 ## Status
 
-Destroyed on 2026-11-14 at 07:42 UTC after the kernel 6.18 and XDP runs (deploy at 06:46), and verified empty with
-direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda,
+Destroyed on 2026-11-14 at 10:03 UTC after the threaded NAPI runs (deploy at 07:58, about $1.51), and verified empty
+with direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda,
 IAM). To rerun, follow the README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a
 local checkout of the module, and `nat_kernel` picks the NATs' kernel line.
