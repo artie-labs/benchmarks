@@ -89,7 +89,8 @@ def owner_metrics(s, window):
         if k in ct:
             m["conntrack_" + k] = ct[k]
     for k in ("probe_errors", "conntrack_full", "pacing_cut_allowance", "pacing_cut_cpu", "pacing_stopped_cutting", "pacing_failed", "dns_or_probe_timeout", "conntrackd_resync",
-              "conntrack_nearly_full", "counter_read_errors", "stepped_down"):
+              "conntrack_nearly_full", "counter_read_errors", "stepped_down", "path_alive", "congested_rounds",
+              "path_check_failed"):
         if journal.get(k):
             m["journal_" + k] = journal[k]
     light, heavy, light_rtt, light_ping = [], [], [], []

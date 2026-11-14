@@ -147,6 +147,12 @@ from [box/lib.sh](box/lib.sh)), and `FLOOD=udp|syn FLOOD_PPS=...`, which floods 
 receiver with [flood](flood) during the load. Jobs: [p3-starve](jobs/p3-starve.sh) (`RX=off` or `RX=on` on its first
 line), [p3-cost](jobs/p3-cost.sh), [p3-flood](jobs/p3-flood.sh) and [p3-checks](jobs/p3-checks.sh).
 
+The release candidate checks are [rc-validate](jobs/rc-validate.sh) (smoke, handovers, saturation, churn, external
+probes) and [rc-udp](jobs/rc-udp.sh) (small-UDP overload). [box/ackburst.py](box/ackburst.py) sends a burst of ACKs
+without a connection and counts the resets that come back. [rc-kernel-ab](jobs/rc-kernel-ab.sh) repeats the
+saturation runs on another kernel line (`nat_kernel` in `terraform.tfvars`), and [fix-failover](jobs/fix-failover.sh)
+blackholes the owner's shared path to check that it still steps down.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 

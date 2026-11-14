@@ -533,9 +533,84 @@ skipped.
   priority can't fix that. Worth trying instead: corroborating a probe failure against the forwarding rate, so a
   saturated but working owner doesn't step down to a peer that will saturate the same way.
 
+# Release candidate (2026-11-14)
+
+Build 671d06f from natpair's bench/release branch: master faaac9a plus natpair#9 (b52453a), #10 (a31cd73), #11
+(05bd6f9), #12 (69485d3) and #14 (f68fd49), without #8 (pacing) or #13 (control-plane priority). Tagged v0.1.99,
+tarball sha256 6e907cec5479281f65eb7d9eb736c2a1d1d1e279dba6109823ffc606316957fc, binary 071590de. Module from the same
+commit, so the NATs boot #14's default kernel line: 6.18.62-127.179 on both. c7gn.large NATs, irqbalance off. Jobs:
+[rc-validate](jobs/rc-validate.sh), [rc-udp](jobs/rc-udp.sh). Runs: [results/rc-671d06f](results/rc-671d06f). Medians
+of 3 runs, range in parentheses.
+
+| Check | Result | Verdict |
+| --- | --- | --- |
+| Smoke, kernel | Both NATs 6.18.62, v0.1.99, binary 071590de. 20 s of TCP: 19.27 Gbps. 20 s of churn: 3,000/s, p99 1.9 ms | pass |
+| Interrupt spreading after 3 handovers | Each new owner had `ens6-Tx-Rx-0` on CPU 0 and `ens6-Tx-Rx-1` on CPU 1, the primary ENI's the same, irqbalance inactive | pass |
+| TCP as fast as 32 flows go (60 s) | 18.94 Gbps (18.93 to 18.97), both CPUs full, against 17.96 on 6.1 in phase 3. 0 takeovers. But 8 (7 to 10) `lease store unreachable` and 28 (28 to 30) DNS or probe timeouts a run | takeovers pass, lease and DNS fail |
+| TCP with 88-byte segments, 64 flows (90 s) | 2.10M pps, 0 takeovers. 11 (11 to 14) lease failures and 40 (35 to 41) DNS or probe timeouts a run | takeovers pass, lease and DNS fail |
+| UDP 64 B at 800k pps (60 s) | 800k forwarded, 0 takeovers, no lease, DNS or probe failures, ping loss 0.12% | pass |
+| UDP 64 B at 1.2M pps (60 s) | 3 takeovers (2 to 3) in every run, ping loss 70.5% (38.6 to 73.2), longest ping gap 13.1 s (5.5 to 16.3) | fail: worse than 6.1, where 1 run of 3 flapped (phase 3) |
+| 3,000 connections a second, 3 consecutive 60 s runs | 3,000/s, 0 failures, p99 1.98 ms (1.96 to 2.02), table about 100k | pass |
+| 120 s churn with a forced full copy 60 s in | Table 97.9k before, 99.6k after, p99 1.99 ms, 0 step-downs | pass |
+| SYN probes from the receiver to the shared and both own addresses, ports 22, 8080, 40000, 50000, 61000, 61500, 62000, 65000, 3 rounds | No answer anywhere | pass |
+| ACK probes, same addresses and ports | Own addresses: no answer. Shared address: a reset on 8080, 40000 and 50000 only, no answer on 22 and 61000 to 65000 | pass |
+| 200 ACKs at 2,000/s to the shared address's port 40000 from one source, then 50/s for 10 s, 3 rounds | 51 resets in the burst, then 14 in the first second and 10 a second after (0.5 s of refill before the tail) | pass |
+| Planned handover at 2 Gbps (`natpair maintenance`, then `natpair resume`), 3 rounds | 1 takeover each, ping gap 8.7 s (6.1 to 9.9), receiver gap 13.0 s (6.0 to 13.0), no lease failures | pass |
+
+**Kernel 6.18 starves the NAT's own traffic at full CPU.** With both CPUs full of TCP, the owner's lease renewals time
+out (`DynamoDB: PutItem ... context deadline exceeded`) and its DNS lookups fail (`lookup ...lambda-url...: i/o
+timeout`). It never stepped down, because the lease survives a few missed renewals. The natpair daemon used 26 to 30%
+of a CPU, almost all system time, against 1.2% with the same features on 6.1, and enapoll on the owner missed 18 to
+23 s of each run's samples (0.06 s on 6.1). The kernel seems to charge forwarding work to the daemon's own system calls, and user space starves.
+
+The same build on 6.1 shows the kernel is the cause. With the fix build below (which changes only what a timed-out
+probe does), kernel 6.1.190 via the module's `kernel` input, c7gn.large, [rc-kernel-ab](jobs/rc-kernel-ab.sh):
+
+| Load, c7gn.large | 6.18.62 (release candidate) | 6.1.190 (fix build) |
+| --- | --- | --- |
+| TCP as fast as 32 flows go | 18.94 Gbps, 7 to 10 lease failures and 28 to 30 DNS or probe timeouts a run | 18.57 Gbps (18.41 to 18.62), 0 lease failures, 0 DNS timeouts, 0 to 1 failed probe |
+| TCP with 88-byte segments | 1.19 Gbps, 11 to 14 lease failures and 35 to 41 DNS or probe timeouts | 1.11 Gbps, 0 lease failures, 0 DNS timeouts, 1 failed probe |
+
+6.18 forwards 2 to 7% more, but at full CPU the pair can't renew its lease or resolve the probe receiver. A longer
+overload would likely end in lease loss and a takeover, so #14's default of 6.18 needs a second look before release.
+
+## natpair#15: a congested path keeps its owner (2026-11-14)
+
+Build 7f4124b from natpair's bench/release-udp branch: bench/release plus natpair#15. When the owner's probe times out,
+it tries 40 TCP handshakes with the probe receiver through the shared Elastic IP. If some complete and some don't,
+the path is congested, and the round doesn't count toward stepping down. Tarball sha256
+2220b753da60c1d9ec2fc750a3466d125ce545b0295910fad27844b44f2815db, binary 420c8fed, still tagged v0.1.99, kernel 6.18.62.
+`analyze.py` counts `path_alive` (`the health probe failed, but the path is alive`), `congested_rounds` (health rounds
+with `"congested":true`) and `path_check_failed`. Runs: [results/fix-7f4124b](results/fix-7f4124b).
+
+| Load, 60 s, 3 runs | Release candidate, c7gn.large | #15, c7gn.large | #15, c7gn.medium |
+| --- | --- | --- | --- |
+| UDP 64 B at 800k pps | 0 takeovers, ping loss 0.12% | 0 takeovers, ping loss 0.07% (0 to 0.16) | 4 takeovers in every run, ping loss 77.1% (70.1 to 83.0), 213k pps forwarded. Phase 3 on 6.1 (#13 off): 2 to 3 takeovers a run |
+| UDP 64 B at 1.2M pps | 3 takeovers (2 to 3) a run, ping loss 70.5%, longest gap 13.1 s, 288k pps forwarded | 0 takeovers in 3 runs, ping loss 40.7% (27.8 to 50.5), longest gap 0.19 s (0.17 to 0.23), 1.02M pps forwarded. `path is alive` once a run (it logs at most once a minute), 2 to 4 congested rounds, 0 to 11 lease failures | 3 to 4 takeovers in every run, ping loss 89.0% (87.5 to 89.8), 183k pps forwarded. Phase 3 on 6.1: 3 to 4 a run |
+
+- **The handshakes reach the probe receiver.** In congested rounds on AWS, 1 to 37 of the 40 handshakes completed with
+  the Lambda function URL's addresses on port 443 through the shared address (`"handshakes":33,"attempts":40`).
+- **A dead path still fails over.** With TCP at 2 Gbps, the owner dropped everything it sent through the shared ENI
+  outside the VPC from 03:54:25. Its rounds reported `"congested":false`, it stepped down at 03:54:31 (`stepped down
+  after corroborated path failure`), and the standby owned the ENI at 03:54:37. Ping gap 12.4 s, 1 takeover.
+  [jobs/fix-failover.sh](jobs/fix-failover.sh).
+- **One handshake out of 40 keeps the owner.** Three of the large's congested rounds had `"handshakes":1`. That's right
+  for a saturated owner, whose peer would saturate the same way. But a path that loses 97% of packets for another
+  reason also counts as alive.
+- **On the medium, #15 changes nothing, because the medium loses its lease.** Of the 23 ownership sessions that ended
+  in the 6 runs, 20 ended on the lease (`lease lost: forwarding permission expired` 8 times, `another owner took the
+  lease while the store was unavailable` 6, `takeover failed: failed to verify the shared Elastic IP: lease lost` 6)
+  and 3 on a path failure. 21 health rounds reported 0 of 40 handshakes completed, which counts as a dead path, and
+  only a few reported 39 or 40. The
+  single vCPU on 6.18 is too saturated for the daemon to renew its lease or finish a handshake. Whether 6.1 helps the
+  medium too wasn't measured.
+- Harness bug (fixed): the fail-over job's timer that removes the blackhole rules failed, because systemd reads a `;`
+  in a transient unit's command as a separator. The rules were removed by hand 3 minutes later, while that NAT was the
+  standby.
+
 ## Status
 
-Torn down on 2026-11-13 after phase 3 (see the cost log). To rerun, follow the README's Deploy section with the
-build and module of choice. On a first apply, `replace-nats.sh` stops at `natpair maintenance` because the old owner
-never registered with SSM. Replace that NAT with `terraform apply -replace` instead. The bench/simple module
-registers SSM before boot, so this may no longer happen.
+Destroyed on 2026-11-14 at 04:35 UTC after the release candidate and #15 runs, and verified empty with direct describe
+calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda, IAM). To rerun,
+follow the README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a local checkout of
+the module, and `nat_kernel` picks the NATs' kernel line.

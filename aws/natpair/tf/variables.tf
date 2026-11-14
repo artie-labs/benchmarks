@@ -28,6 +28,12 @@ variable "nat_instance_type" {
   default     = "c7gn.medium"
 }
 
+variable "nat_kernel" {
+  description = "Amazon Linux 2023 kernel line the NATs boot (natpair's kernel input, from natpair#14). Replaced NATs pick it up."
+  type        = string
+  default     = "6.18"
+}
+
 variable "generator_instance_type" {
   description = "Instance type of the load generators in the worker subnet."
   type        = string

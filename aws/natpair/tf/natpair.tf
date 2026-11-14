@@ -3,13 +3,12 @@ resource "aws_eip" "shared" {
   tags   = { Name = "${var.name}-shared" }
 }
 
-# Phases 2 and 3 run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes from a local checkout of the
-# same commit, which matches the build's install.sh. Phase 3's bench/simple module has no pacing input. The
-# path assumes this repo is at <workspace>/benchmarks.worktrees/<name> and natpair at
-# <workspace>/natpair.worktrees/bench-v0.1.99. Phase 1 used
-# git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
+# Phases 2 and 3 and the release candidate run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes
+# from a local checkout of the same commit, which matches the build's install.sh. The path assumes this repo is at
+# <workspace>/benchmarks.worktrees/<name> and natpair's bench/release branch at <workspace>/natpair.worktrees/release.
+# Phase 1 used git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
 module "natpair" {
-  source = "../../../../../natpair.worktrees/bench-v0.1.99/terraform"
+  source = "../../../../../natpair.worktrees/release-udp/terraform"
 
   name    = var.name
   pair_id = var.name
@@ -19,6 +18,7 @@ module "natpair" {
   shared_eip_allocation_id = aws_eip.shared.allocation_id
 
   instance_type = var.nat_instance_type
+  kernel        = var.nat_kernel
 
   release        = var.natpair_release
   release_sha256 = var.natpair_release_sha256
