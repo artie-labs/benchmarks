@@ -164,6 +164,12 @@ name the runs. [scripts/prof-summary.py](scripts/prof-summary.py), [scripts/prof
 [scripts/xdp-summary.py](scripts/xdp-summary.py) summarize their files. The XDP programs need a clang with the BPF
 target, such as `CLANG=/opt/homebrew/opt/llvm/bin/clang ./scripts/build.sh`.
 
+natpair#16 (threaded NAPI on every ENI) uses [napi-sat](jobs/napi-sat.sh) (full-rate TCP, 88-byte TCP and small UDP
+at 800k and 1.2M packets a second), [napi-flood](jobs/napi-flood.sh) (a flood of the owner's own address during
+steady TCP) and [napi-cost](jobs/napi-cost.sh) (CPU per packet at fixed rates, threaded NAPI off then on, where off
+hides the real `threaded` files from the daemon behind bind mounts). [scripts/run-brief.py](scripts/run-brief.py)
+prints one line per run, with why each ownership session ended.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 

@@ -61,8 +61,11 @@ sleep_until "$START"
 sampler=$!
 if [[ $role == nat ]]; then
   bpftool -j prog show > bpf-start.json 2> /dev/null
-  # natpair#13: whether each interface runs threaded NAPI, and the nice value of the receive threads.
-  { grep -H . /sys/class/net/ens*/threaded; ps -eo ni,comm | grep 'napi/'; } > threaded.txt 2>&1
+  # Whether each interface runs threaded NAPI, and the nice value of the receive threads. While napi-cost hides
+  # the real files from the daemon behind bind mounts, the real values are read through a second sysfs mount.
+  sys=/sys
+  [[ -d /run/bench-sys/class/net ]] && sys=/run/bench-sys
+  { grep -H . $sys/class/net/ens*/threaded | sed "s#^$sys/#/sys/#"; ps -eo ni,comm | grep 'napi/'; } > threaded.txt 2>&1
   # Connection table size and the kernel's conntrack drops, once a second, for as long as enapoll samples, so a run
   # stopped early ends here too.
   (
