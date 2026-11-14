@@ -1,0 +1,24 @@
+Running timer as unit: natpair-bench-xdp-guard.timer
+Will run service as unit: natpair-bench-xdp-guard.service
+1794640531.006090215 attach xdp_pass.o (mtu-default) mtu 9001
+1794640531.022098052 attach mtu-default done rc 2: Error: ena: Failed to set xdp program, the current MTU is larger than the maximum allowed MTU. Check the dmesg for more info. 
+1794640538.005449108 mtu 3499
+1794640538.008562582 attach xdp_pass.o (mtu-3499) mtu 3499
+1794640538.019263529 attach mtu-3499 done rc 0: 
+1794640538.022363881 detach (mtu-3499)
+1794640538.044476076 detach mtu-3499 done rc 0
+1794640546.005297745 mtu 3498
+1794640556.006209557 attach xdp_pass.o (pass-1) mtu 3498
+1794640556.015838787 attach pass-1 done rc 0: 
+1794640571.004220620 detach (pass-1)
+1794640571.044357373 detach pass-1 done rc 0
+1794640581.005939924 attach xdp_pass.o (pass-2) mtu 3498
+1794640581.015969659 attach pass-2 done rc 0: 
+1794640591.003702062 detach (pass-2)
+1794640591.044405469 detach pass-2 done rc 0
+1794640651.010407453 attach xdp_drop.o (drop) mtu 3498
+1794640651.019951625 attach drop done rc 0: 
+1794640706.004279196 detach (drop)
+1794640706.044309898 detach drop done rc 0
+1794640706.057195788 restored mtu 9001 combined 2
+1794640716.068064464 cleanup

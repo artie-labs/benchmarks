@@ -1,0 +1,54 @@
+19960 samples
+  swapper                    19887  99.6%
+  natpair                       47   0.2%
+  sysctl                        10   0.1%
+  conntrackd                     6   0.0%
+  perf                           4   0.0%
+  conntrack                      2   0.0%
+  ssm-agent-worke                2   0.0%
+  ps                             2   0.0%
+
+== natpair: 47 samples (0.2% of all), softirq in stack: 0 (0.0%)
+  entry of all samples: {'other': 26, 'syscall': 21}
+  entry of softirq samples: {}
+  system call in stack (all): - 26, __arm64_sys_epoll_pwait 4, __arm64_sys_nanosleep 4, __arm64_sys_execve 3, __arm64_sys_clone 3, __arm64_sys_futex 3, __arm64_sys_epoll_ctl 2, __arm64_sys_newfstatat 1, __arm64_sys_write 1
+  system call in stack (softirq): 
+  into softirq from:
+  hottest functions (self): [unknown] 48.9%, el0_svc 4.3%, ep_remove 4.3%, finish_task_switch.isra.0 4.3%, __schedule 4.3%, arch_counter_get_cntvct 2.1%, __kmalloc_noprof 2.1%, wake_up_new_task 2.1%, copy_process 2.1%, ftrace_graph_init_task 2.1%, fput 2.1%, schedule 2.1%, __arch_copy_from_user 2.1%, exit_itimers 2.1%, from_kgid_munged 2.1%
+  top stacks (outermost first, 10 frames from the leaf):
+     29.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      8.5% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      6.4% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      4.3% [unknown];el0t_64_sync;el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_epoll_ctl;do_epoll_ctl;ep_remove
+      4.3% el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_nanosleep;hrtimer_nanosleep;do_nanosleep;schedule;__schedule
+      2.1% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];el0t_64_sync;el0t_64_sync_handler;el0_svc
+      2.1% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_epoll_pwait;do_epoll_pwait.part.0;do_epoll_wait;ep_poll;select_estimate_accuracy;ktime_get_ts64;arch_counter_get_cntvct
+      2.1% el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_execve;do_execveat_common.isra.0;bprm_execve;prepare_exec_creds;prepare_creds;security_prepare_creds;lsm_blob_alloc.part.0;__kmalloc_noprof
+      2.1% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      2.1% el0t_64_sync;el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_clone;__do_sys_clone;kernel_clone;wake_up_new_task
+
+== conntrackd: 6 samples (0.0% of all), softirq in stack: 0 (0.0%)
+  entry of all samples: {'other': 5, 'syscall': 1}
+  entry of softirq samples: {}
+  system call in stack (all): - 5, __arm64_sys_mprotect 1
+  system call in stack (softirq): 
+  into softirq from:
+  hottest functions (self): finish_task_switch.isra.0 16.7%, wp_page_copy 16.7%, el0_svc 16.7%, do_page_fault 16.7%, copy_from_kernel_nofault 16.7%, ptep_clear_flush 16.7%
+  top stacks (outermost first, 10 frames from the leaf):
+     16.7% _dl_new_object;rtld_malloc;mmap64;el0t_64_sync;el0t_64_sync_handler;el0_svc;exit_to_user_mode_loop;schedule;__schedule;finish_task_switch.isra.0
+     16.7% el0t_64_sync;el0t_64_sync_handler;el0_da;do_mem_abort;do_page_fault;handle_mm_fault;__handle_mm_fault;handle_pte_fault;do_wp_page;wp_page_copy
+     16.7% __libc_start_call_main;main;select_main_loop;[unknown];[unknown];mcast_recv;__libc_recvfrom;el0t_64_sync;el0t_64_sync_handler;el0_svc
+     16.7% _dl_start;_dl_sysdep_start;[unknown];_dl_new_object;el0t_64_sync;el0t_64_sync_handler;el0_da;do_mem_abort;do_translation_fault;do_page_fault
+     16.7% __arm64_sys_mprotect;do_mprotect_pkey;mprotect_fixup;perf_event_mmap;perf_event_mmap_event;d_path;prepend_path;prepend;prepend_copy;copy_from_kernel_nofault
+     16.7% el0t_64_sync_handler;el0_da;do_mem_abort;do_page_fault;handle_mm_fault;__handle_mm_fault;handle_pte_fault;do_wp_page;wp_page_copy;ptep_clear_flush
+
+per CPU: cpu000 swapper 9952, cpu001 swapper 9935
+
+/tmp/nbres/prof/20261114T064938Z-c7gn.large-k618/idle: 21.2 s between snapshots 0 and 1 (perf record running)
+  natpair (all 46 threads) run   0.4% runqueue wait   0.1% slices/s   276.3 utime 0.2 stime 0.1 ticks/s
+  14 ksoftirqd/0       run   0.0% wait   0.0% slices/s     0.9 utime+stime   0.0 ticks/s
+  22 ksoftirqd/1       run   0.0% wait   0.0% slices/s     1.2 utime+stime   0.0 ticks/s
+  5227 conntrackd      run   0.0% wait   0.0% slices/s     6.6 utime+stime   0.0 ticks/s
+  softirqs/s: NET_RX [12, 17], NET_TX [0, 0], TIMER [28, 22], SCHED [60, 59], RCU [25, 30]
+  cpu: user 0.4% nice 0.0% sys 0.7% idle 98.9% iowait 0.0% irq 0.0% softirq 0.0% steal 0.0%
+  psi: some avg10=0.01 avg60=13.85 avg300=23.94 total=137182649
