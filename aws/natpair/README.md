@@ -176,6 +176,11 @@ on and off; `SIDES=on|off` and `CASES` narrow it), [xdp-flood](jobs/xdp-flood.sh
 the shared ENI). `run.sh` takes `GUARD=on|off`, and [xdp-install](jobs/xdp-install.sh) (prepend `SHA=<archive sha256>`)
 installs the build in the bucket on both NATs without replacing them, the standby first.
 
+The final release candidate (natpair bench/final, every PR of the release) uses [final-rc](jobs/final-rc.sh), whose
+sections (`CASES`) cover the release candidate's checks, the small-UDP and own-address flood loads, the guard's state
+after it clears, a handover during a flood and CPU per packet. Queue one job per section, with `CASES=...` on the
+first line, so results reach the bucket after each.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 
