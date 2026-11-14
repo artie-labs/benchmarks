@@ -1,0 +1,86 @@
+owner i-0340a652af290cbcf, shared 10.40.0.226, nat a 10.40.0.116 (i-0bb71c85e48072ff5), nat b 10.40.0.197 (i-0340a652af290cbcf)
+counters zeroed
+== nmap -sS 10.40.0.226
+Nmap scan report for 10.40.0.226
+22/tcp    filtered ssh        no-response
+8080/tcp  filtered http-proxy no-response
+40000/tcp filtered safetynetp no-response
+50000/tcp filtered ibm-db2    no-response
+61500/tcp filtered unknown    no-response
+== nmap -sS 10.40.0.116
+Nmap scan report for 10.40.0.116
+22/tcp    filtered ssh        no-response
+8080/tcp  filtered http-proxy no-response
+40000/tcp filtered safetynetp no-response
+50000/tcp filtered ibm-db2    no-response
+61500/tcp filtered unknown    no-response
+== nmap -sS 10.40.0.197
+Nmap scan report for 10.40.0.197
+22/tcp    filtered ssh        no-response
+8080/tcp  filtered http-proxy no-response
+40000/tcp filtered safetynetp no-response
+50000/tcp filtered ibm-db2    no-response
+61500/tcp filtered unknown    no-response
+== nmap -sA 10.40.0.226
+Nmap scan report for 10.40.0.226
+22/tcp    unfiltered ssh        reset ttl 127
+8080/tcp  unfiltered http-proxy reset ttl 127
+40000/tcp unfiltered safetynetp reset ttl 127
+50000/tcp unfiltered ibm-db2    reset ttl 127
+61500/tcp unfiltered unknown    reset ttl 127
+== nmap -sA 10.40.0.116
+Nmap scan report for 10.40.0.116
+22/tcp    filtered ssh        no-response
+8080/tcp  filtered http-proxy no-response
+40000/tcp filtered safetynetp no-response
+50000/tcp filtered ibm-db2    no-response
+61500/tcp filtered unknown    no-response
+== nmap -sA 10.40.0.197
+Nmap scan report for 10.40.0.197
+22/tcp    filtered ssh        no-response
+8080/tcp  filtered http-proxy no-response
+40000/tcp filtered safetynetp no-response
+50000/tcp filtered ibm-db2    no-response
+61500/tcp filtered unknown    no-response
+== owner firewall counters after the probes (nonzero)
+Chain PREROUTING (policy ACCEPT 587 packets, 300061 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     587   300061 NATPAIR_UNTRACK_IN  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain OUTPUT (policy ACCEPT 320 packets, 184683 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     320   184683 NATPAIR_UNTRACK_OUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain NATPAIR_UNTRACK_IN (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+     210    66520 CT         tcp  --  *      *       0.0.0.0/0            10.40.0.197          tcp dpts:32768:60999 CT notrack
+      11     1815 CT         udp  --  *      *       10.40.0.0/16         10.40.0.197          udp dpts:32768:60999 CT notrack
+      23     1612 CT         udp  --  *      *       10.40.0.116          10.40.0.197          udp dpt:3780 CT notrack
+       1       76 CT         udp  --  *      *       169.254.169.123      10.40.0.197          udp spt:123 dpts:32768:60999 CT notrack
+Chain NATPAIR_UNTRACK_OUT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+     245   177812 CT         tcp  --  *      *       10.40.0.197          0.0.0.0/0            tcp spts:32768:60999 CT notrack
+      69     6595 CT         udp  --  *      *       10.40.0.197          10.40.0.0/16         udp spts:32768:60999 CT notrack
+       1       76 CT         udp  --  *      *       10.40.0.197          169.254.169.123      udp spts:32768:60999 dpt:123 CT notrack
+Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+     275    71291 NATPAIR_INPUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+Chain FORWARD (policy DROP 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+       4      232 NATPAIR    all  --  *      *       10.40.0.0/16         0.0.0.0/0           
+       4      232 NATPAIR    all  --  *      *       0.0.0.0/0            10.40.0.0/16        
+     169    93444 ACCEPT     all  --  *      *       198.18.0.6           0.0.0.0/0           
+     135   134862 ACCEPT     all  --  *      *       0.0.0.0/0            198.18.0.6           ctstate RELATED,ESTABLISHED
+       4      232 ACCEPT     all  --  *      *       10.40.0.0/16         0.0.0.0/0            ctstate NEW,RELATED,ESTABLISHED
+       4      232 ACCEPT     all  --  *      *       0.0.0.0/0            10.40.0.0/16         ctstate RELATED,ESTABLISHED
+Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
+    pkts      bytes target     prot opt in     out     source               destination         
+Chain NATPAIR (2 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+       8      464 RETURN     all  --  *      *       0.0.0.0/0            0.0.0.0/0           match bpf pinned /sys/fs/bpf/natpair/check
+Chain NATPAIR_INPUT (1 references)
+    pkts      bytes target     prot opt in     out     source               destination         
+      34     3427 ACCEPT     all  --  *      *       10.40.0.0/16         0.0.0.0/0           
+     202    66184 ACCEPT     tcp  --  *      *       0.0.0.0/0            10.40.0.197          tcp dpts:32768:60999 flags:!0x17/0x02 ctstate UNTRACKED socket
+       1       76 ACCEPT     udp  --  *      *       169.254.169.123      10.40.0.197          udp spt:123 dpts:32768:60999 ctstate UNTRACKED
+       5      200 REJECT     tcp  --  *      *       0.0.0.0/0            10.40.0.226          tcp flags:!0x17/0x02 ctstate INVALID reject-with tcp-reset
+      33     1404 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+	

@@ -37,6 +37,8 @@ JOURNAL_PATTERNS = {
     "pacing_cut_allowance": r"pacing cut its cap",
     "pacing_cut_cpu": r"forwarding CPU is nearly full",
     "pacing_stopped_cutting": r"stopped cutting it",
+    "probe_errors": r'"probe_error":"',
+    "conntrack_full": r"connection table is full",
     "pacing_failed": r"failed to load pacing|failed to pace",
     "pacing_off": r"pacing off|pacing-off|pacing turned off|pacing is off",
     "conntrack_nearly_full": r"connection table is nearly full",
@@ -451,6 +453,23 @@ def pacing_limits(host_dir, load_at):
     }
 
 
+def threaded(host_dir):
+    """natpair#13's state at the start of the run: threaded NAPI per interface (1 or 0) and the nice values of the
+    receive threads, from threaded.txt."""
+    path = os.path.join(host_dir, "threaded.txt")
+    if not os.path.exists(path):
+        return None
+    out = {"threaded": {}, "napi_nice": {}}
+    for line in open(path):
+        if line.startswith("/sys/class/net/"):
+            name, _, value = line.strip().partition(":")
+            out["threaded"][name.split("/")[4]] = value
+        elif "napi/" in line:
+            nice, comm = line.split(None, 1)
+            out["napi_nice"][comm.strip()] = nice
+    return out
+
+
 def irq_layout(host_dir):
     path = os.path.join(host_dir, "irq.txt")
     if not os.path.exists(path):
@@ -592,6 +611,7 @@ def analyze(run_dir):
         host["bpf"] = bpf_stats(host_dir)
         host["conntrack"] = conntrack_stats(host_dir, *steady)
         host["irq"] = irq_layout(host_dir)
+        host["threaded"] = threaded(host_dir)
         host["fair"] = fair_summary(host_dir)
         host["churn"] = churn_summary(host_dir)
         host["iperf"] = iperf_summary(host_dir)
@@ -609,6 +629,9 @@ def analyze(run_dir):
     seen = [h["receiver_saw_sources"] for h in out["hosts"].values() if h.get("receiver_saw_sources") is not None]
     if seen:
         out["sources_ok"] = seen[0] == [meta["shared_private_ip"]]
+    flood = os.path.join(run_dir, "flood.json")
+    if os.path.exists(flood):
+        out["flood"] = json.load(open(flood))
     return out
 
 
