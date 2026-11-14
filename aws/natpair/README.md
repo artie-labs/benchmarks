@@ -170,6 +170,12 @@ steady TCP) and [napi-cost](jobs/napi-cost.sh) (CPU per packet at fixed rates, t
 hides the real `threaded` files from the daemon behind bind mounts). [scripts/run-brief.py](scripts/run-brief.py)
 prints one line per run, with why each ownership session ended.
 
+natpair#17 (the XDP overload guard on the shared ENI) uses [xdp-sat](jobs/xdp-sat.sh) (napi-sat's loads with the guard
+on and off; `SIDES=on|off` and `CASES` narrow it), [xdp-flood](jobs/xdp-flood.sh), [xdp-takeover](jobs/xdp-takeover.sh)
+(a handover during a flood) and [xdp-attached-cost](jobs/xdp-attached-cost.sh) (TCP with [xdp/pass.c](xdp/pass.c) on
+the shared ENI). `run.sh` takes `GUARD=on|off`, and [xdp-install](jobs/xdp-install.sh) (prepend `SHA=<archive sha256>`)
+installs the build in the bucket on both NATs without replacing them, the standby first.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 

@@ -781,9 +781,106 @@ The comparisons are the release candidate (671d06f, [Release candidate](#release
 - **The shared ENI gets threaded NAPI at every takeover.** Each new owner logged `turned on threaded receive
   processing` within a second of the ENI coming up, before `forwarding open`, and every summary showed 1 on both ENIs.
 
+# XDP overload guard (2026-11-14)
+
+natpair#17 adds an overload guard for the shared ENI. The final build is ccbc006 from natpair's bench/release-xdp
+branch: bench/release-napi (707894d, natpair#16 on #15) plus natpair#17 at b973c97, tagged v0.1.99, tarball sha256
+c005814f62d374678631fa9458723be37d8d212e4c61caa4b7b9723ba37ec1b6, binary 19fd8d4d. The guard changed during the bench
+(see [Why it ended up like this](#why-it-ended-up-like-this)), so each row names the build it ran. Module from the same
+branch, fresh deploy at 10:45 UTC, both NATs c7gn.medium on 6.18.62-127.179, then resized in place to c7gn.large for the
+sanity runs. All five instances registered with SSM on the first boot. Jobs: [xdp-sat](jobs/xdp-sat.sh) (`SIDES` and
+`CASES` pick the side and loads), [xdp-flood](jobs/xdp-flood.sh), [fix-failover](jobs/fix-failover.sh),
+[xdp-takeover](jobs/xdp-takeover.sh), [xdp-attached-cost](jobs/xdp-attached-cost.sh), and
+[xdp-install](jobs/xdp-install.sh), which installs a new build on both NATs without replacing them. `run.sh` takes
+`GUARD=on|off` (natpair's off switch, `/var/lib/natpair/overload-guard-off`), and each NAT now records its ENIs'
+`rx_packets`, `rx_dropped`, `rx_over_errors` and XDP program at the start and end (`nic` in the summary). Runs:
+[results/xdp-ccbc006](results/xdp-ccbc006). 3 runs of 60 s per cell unless noted, median and range.
+
+**What the guard does in the final build.** The daemon watches the busiest CPU and the shared ENI's `rx_over_errors`
+every 100 ms, with nothing attached. When the busiest CPU has been at least 95% busy for 300 ms and the NIC dropped at
+least 5% of what reached the shared ENI in the last second, it raises the shared ENI's receive ring to its maximum
+(2,048 on the medium, default 1,024), attaches the XDP program, measures for 200 ms and sets a per-CPU budget of 90% of
+the busiest CPU's rate per 2^20 ns tick. While limiting, it runs the shared ENI's `napi/` receive threads at nice -10,
+and while the CPU stays full and the NIC still drops 5%, it cuts the budget to 90% of itself once a second, down to half
+the measured rate. Past the budget the program drops worker packets but passes non-IPv4 and up to 128 probe replies per
+CPU per 16.8 ms. It detaches and restores the ring and nice values once it sheds under 5% and the NIC keeps up.
+
+## c7gn.medium, guard on and off
+
+The off side ran first (11:35 to 12:12) and is the same on every build: the off switch keeps nothing attached. The UDP
+rows' on side ran on a5dd3ec (12:46 to 13:01), which is the final build without b973c97, so each of its runs also cut
+the budget once more as the flood ended, at idle CPU. The TCP and flood rows' on side ran on 8ff1873, which lacks the
+budget cut and the NIC-aware clear. Neither engaged, so the rest of the guard didn't run.
+
+| Load | Guard off | Guard on |
+| --- | --- | --- |
+| UDP 64 B at 800k pps | Takeovers 0, 0, 2. 515k forwarded (476k to 515k). 23 to 28 failed probes a run. Ping loss 53.8% (52.4 to 57.6). NIC dropped 35.6% | Takeovers 0, 0, 0. 400k forwarded (398k to 429k). 0 failed probes. Ping loss 75.9% (62.9 to 77.4). NIC dropped 0.3%. Engaged once and cleared once a run, 0 or 1 budget cuts while the CPU was full |
+| UDP 64 B at 1.2M pps | Takeovers 0, 0, 0. 516k forwarded (515k to 517k). 31 to 38 failed probes. Ping loss 73.7% (59.3 to 73.9). NIC dropped 57.0% | Takeovers 0, 0, 0. 363k forwarded (358k to 400k). 0 to 2 failed probes. Ping loss 86.6% (79.2 to 87.1). NIC dropped 1.2%. 1 or 2 budget cuts while the CPU was full |
+| TCP as fast as 32 flows go | 8.91 Gbps (8.91 to 8.93). NIC dropped 2.0%. 1,206 ns a packet | 8.90 Gbps (8.89 to 9.02). Never engaged (NIC 2.0%, under the 5% line). 1,210 ns a packet |
+| TCP with 88-byte segments, 64 flows | 0.524 Gbps, 859k pps. NIC 2.8%. 1,060 ns a packet | 0.521 Gbps, 856k pps. Never engaged. 1,064 ns a packet |
+| 1M pps UDP flood of the owner's own address, TCP at 4.5 Gbps | 4.32 Gbps (4.26 to 4.36). 10 lease failures every run. 0 takeovers | 4.28 Gbps (4.10 to 4.32). 8 to 11 lease failures. 0 takeovers. Never engaged |
+
+No run on either side failed a lease renewal except under the own-address flood, which the guard can't see (it arrives
+on the primary ENI), and no guard-on run took a takeover. The daemon used 0.9 to 1.0% of the CPU with the guard on.
+
+- **The guard keeps the owner's probe working, at the cost of forwarding.** Off, the owner failed 23 to 38 probes a run
+  and still handed over twice in 6 UDP runs (#15 kept it in place for most failed rounds). On, it failed at most 2. It
+  forwards 22% fewer packets at 800k and 30% fewer at 1.2M, and ping, which is worker traffic, loses more. That is the
+  budget: it holds the CPU below full so the NIC stops dropping at random, and the probe's replies, which it exempts,
+  get through.
+- **TCP isn't affected.** Full-rate TCP fills the medium's CPU too, but its NIC drop share stays at 2.0 to 2.8%, so the
+  guard never engaged, and nothing is attached while it watches.
+
+## Why it ended up like this
+
+Four builds ran before the final one. Each was installed on both NATs with xdp-install, the standby first.
+
+- **The NIC counts ring overflow in `rx_over_errors`, not `rx_dropped`.** The first build (6e8b84d) read `rx_dropped`,
+  which stayed at 0 while the medium received 515k of 800k pps, so it never engaged. ENA puts the overflow in
+  `rx_over_errors` (12.4M after one run) and adds XDP drops to `rx_dropped`.
+- **Shedding load alone didn't save the probe.** With the budget on (8d8792c), the medium's CPU sat at 86 to 87%, the
+  NIC delivered 775k of 800k pps, and the owner still failed most probes and handed over. Plain TCP connects from the
+  shared canary to the same receiver addresses succeeded 38 to 40 of 40 at the same moments, so the loss followed the
+  daemon's own health rounds: they held the single CPU for longer than the 1,024-slot ring lasts at 800k pps (1.3 ms),
+  and the NIC dropped the probe's replies. A live A/B on the engaged owner, natpair's probe errors per 30 s: 5 to 6 at
+  the defaults, 1 with `napi/ens6-0` at nice -10, 0 at nice -10 with the 2,048-slot ring (ring overflow 93 a second,
+  from 25,000).
+- **The budget's own drops need a smaller budget at 1.2M.** With a fixed 90% budget (8ff1873), 1.2M pps still filled the
+  CPU in 2 of 3 runs and the probe failed 24 and 29 times. The budget cut fixed it.
+- **The clear rule.** "Busiest CPU below 80% for 1 s" took the budget off 2 s after it went on, because the budget kept
+  the CPU near 80%. "The program drops under 5%" was fooled once at 100% CPU, when the budget was more than the CPU
+  could pass and the NIC dropped the rest. The final rule needs both under 5%. A late `rx_over_errors` step after a
+  flood also cut the budget once at idle CPU in a5dd3ec, which b973c97 stops.
+
+## What attaching costs
+
+With any XDP program on the shared ENI, ENA's receive path costs more, which is why the final build attaches only while
+it sheds. [xdp-attached-cost](jobs/xdp-attached-cost.sh) attached [xdp/pass.c](xdp/pass.c) (`XDP_PASS` only) to the
+owner's shared ENI, with natpair's guard off, during full-rate TCP, 2 runs: 7.80 Gbps (7.74 to 7.86) at 1,385 ns a
+packet, against 8.91 Gbps at 1,206 ns with nothing attached (the off side above). An earlier build that kept the guard
+attached at budget 0 measured the same: 7.68 Gbps at 1,396 ns, and 88-byte TCP 10% slower. The program's own fast path
+is about 1 ns: in `BPF_PROG_TEST_RUN` with 10M repeats in a Linux 7.0 VM, 6 ns a run at budget 0 against 6 ns for a bare
+`XDP_PASS` program, and 17 to 23 ns with a budget, mostly `bpf_ktime_get_ns`.
+
+## Fail-over, takeover and c7gn.large
+
+- **A dead path still fails over.** [fix-failover](jobs/fix-failover.sh) on the medium, a5dd3ec, with TCP at 2 Gbps: the
+  owner dropped everything it sent through the shared ENI outside the VPC from 13:02:08, stepped down at 13:02:14
+  (`stepped down after corroborated path failure`) and the ENI moved at 13:02:21. Rules removed afterwards.
+- **A takeover during a flood.** a5dd3ec, `natpair maintenance` 20 s into 64-byte UDP at 1.2M pps: the new owner logged
+  `overload guard watching` for ens6 at 13:06:47, attached and engaged at 13:06:49 while its fence was still closed (the
+  flood alone filled the CPU), and opened forwarding at 13:06:50. The old owner stopped watching. No program ended up on
+  the old owner or on any primary ENI.
+- **c7gn.large, final build ccbc006, guard on, one run each.** Full-rate TCP 18.72 Gbps, never engaged, 0 takeovers
+  (#16: 18.17). 64-byte UDP at 1.2M pps: engaged once and cleared once, 864k forwarded (#16: 965k), 0 failed probes
+  (#16: 1 to 14), ping loss 46.4% (#16: 24.6%), 0 takeovers.
+
+Cost of this deploy: 10:45 to 13:24 UTC, about $1.79 (medium 2.50 h, large 0.16 h, S3, DynamoDB and Lambda).
+
 ## Status
 
-Destroyed on 2026-11-14 at 10:03 UTC after the threaded NAPI runs (deploy at 07:58, about $1.51), and verified empty
-with direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda,
-IAM). To rerun, follow the README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a
-local checkout of the module, and `nat_kernel` picks the NATs' kernel line.
+Destroyed on 2026-11-14 at 13:24 UTC after the XDP overload guard runs (deploy at 10:45, about $1.79), and verified
+empty with direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket,
+DynamoDB, Lambda, IAM). Only the unrelated benchmark-oracle instance and its own resources remain. To rerun, follow the
+README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a local checkout of the module,
+here `natpair.worktrees/release-xdp`, and `nat_kernel` picks the NATs' kernel line.

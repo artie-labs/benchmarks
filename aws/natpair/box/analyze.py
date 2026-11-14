@@ -49,6 +49,12 @@ JOURNAL_PATTERNS = {
     "path_alive": r"the health probe failed, but the path is alive",
     "congested_rounds": r'"congested":true',
     "path_check_failed": r"failed to check whether the path is alive",
+    # natpair's XDP overload guard on the shared ENI.
+    "guard_attached": r"overload guard attached",
+    "guard_detached": r"overload guard detached",
+    "guard_engaged": r"overload guard engaged",
+    "guard_cleared": r"overload guard cleared",
+    "guard_failed": r"overload guard failed",
 }
 
 
@@ -475,6 +481,45 @@ def threaded(host_dir):
     return out
 
 
+def nic_drops(host_dir):
+    """Per ENI over the sampling: packets received, rx_dropped (the NIC's drops plus XDP drops on ENA), the dropped
+    share (rx_dropped here includes rx_over_errors), and the XDP program id at the start and end (natpair's overload guard), from nic-start.txt and nic-end.txt.
+    Also the guard's off switch, from guard.txt."""
+    def read(name):
+        path = os.path.join(host_dir, name)
+        if not os.path.exists(path):
+            return {}
+        out = {}
+        for line in open(path):
+            f = line.split()
+            if len(f) >= 3:
+                # name rx_packets rx_dropped [xdp id] rx_over_errors: without a program the id is missing, so
+                # rx_over_errors is the 4th field, and with one the 5th.
+                xdp = f[3] if len(f) > 4 else None
+                over = int(f[-1]) if len(f) > 3 else 0
+                out[f[0]] = (int(f[1]), int(f[2]) + over, xdp, over)
+        return out
+    start, end = read("nic-start.txt"), read("nic-end.txt")
+    if not start:
+        return None
+    out = {}
+    for iface, (rx0, drop0, xdp0, over0) in start.items():
+        if iface not in end:
+            out[iface] = {"xdp_start": xdp0, "gone_at_end": True}
+            continue
+        rx1, drop1, xdp1, over1 = end[iface]
+        rx, drop = rx1 - rx0, drop1 - drop0
+        out[iface] = {"rx_packets": rx, "rx_dropped": drop, "rx_over_errors": over1 - over0, "drop_share": round(drop / (rx + drop), 4) if rx + drop > 0 else 0,
+                      "xdp_start": xdp0, "xdp_end": xdp1}
+    for iface in end:
+        if iface not in start:
+            out[iface] = {"xdp_end": end[iface][2], "new_at_end": True}
+    guard = os.path.join(host_dir, "guard.txt")
+    if os.path.exists(guard):
+        out["guard"] = open(guard).read().strip()
+    return out
+
+
 def irq_layout(host_dir):
     path = os.path.join(host_dir, "irq.txt")
     if not os.path.exists(path):
@@ -616,6 +661,7 @@ def analyze(run_dir):
         host["bpf"] = bpf_stats(host_dir)
         host["conntrack"] = conntrack_stats(host_dir, *steady)
         host["irq"] = irq_layout(host_dir)
+        host["nic"] = nic_drops(host_dir)
         host["threaded"] = threaded(host_dir)
         host["fair"] = fair_summary(host_dir)
         host["churn"] = churn_summary(host_dir)
