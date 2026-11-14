@@ -1,0 +1,90 @@
+19966 samples
+  ksoftirqd/N                19395  97.1%
+  enapoll                      297   1.5%
+  natpair                       79   0.4%
+  bash                          57   0.3%
+  conntrackd                    26   0.1%
+  sysctl                        20   0.1%
+  awk                           17   0.1%
+  date                          14   0.1%
+  conntrack                     14   0.1%
+  sleep                         11   0.1%
+  bpftool                       10   0.1%
+  tr                             8   0.0%
+  swapper                        5   0.0%
+  cat                            4   0.0%
+  rcu_sched                      2   0.0%
+
+== natpair: 79 samples (0.4% of all), softirq in stack: 4 (5.1%)
+  entry of all samples: {'other': 51, 'syscall': 27, 'interrupt': 1}
+  entry of softirq samples: {'other': 3, 'interrupt': 1}
+  system call in stack (all): - 53, __arm64_sys_futex 9, __arm64_sys_execve 6, __arm64_sys_newfstatat 3, __arm64_sys_nanosleep 1, __arm64_sys_bpf 1, __arm64_sys_rt_sigreturn 1, __arm64_sys_epoll_pwait 1, __arm64_sys_clone 1, __arm64_sys_waitid 1, __arm64_sys_epoll_ctl 1, __arm64_sys_pipe2 1
+  system call in stack (softirq): - 4
+  into softirq from:
+      3.8% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- do_notify_resume <- el0_svc <- el0t_64_sync_handler
+      1.3% __irq_exit_rcu <- irq_exit_rcu | el0_interrupt <- __el0_irq_handler_common <- el0t_64_irq_handler <- [unknown]
+  hottest functions (self): [unknown] 54.4%, arch_local_irq_enable 7.6%, el0_svc_common.constprop.0 3.8%, arch_local_irq_restore 2.5%, schedule 1.3%, do_open_execat 1.3%, ebitmap_get_bit.part.0.isra.0 1.3%, policydb_roletr_search 1.3%, fpsimd_load_state 1.3%, up_write 1.3%, begin_new_exec 1.3%, getname_flags 1.3%, restore_sve_fpsimd_context 1.3%, get_futex_key 1.3%, ena_com_write_bounce_buffer_to_dev 1.3%
+  top stacks (outermost first, 10 frames from the leaf):
+     31.6% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+     10.1% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      6.3% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_futex;do_futex;futex_wait;futex_wait_queue;schedule;__schedule;arch_local_irq_enable
+      3.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0
+      3.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      3.8% [unknown];[unknown];[unknown];[unknown];[unknown]
+      2.5% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      2.5% el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_futex;do_futex;futex_wake;wake_up_q;arch_local_irq_restore
+      1.3% [unknown];[unknown];[unknown];[unknown]
+      1.3% [unknown];el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_nanosleep;hrtimer_nanosleep;do_nanosleep;schedule
+
+== enapoll: 297 samples (1.5% of all), softirq in stack: 9 (3.0%)
+  entry of all samples: {'syscall': 178, 'user': 94, 'other': 24, 'interrupt': 1}
+  entry of softirq samples: {'syscall': 7, 'interrupt': 1, 'other': 1}
+  system call in stack (all): - 124, __arm64_sys_getdents64 66, __arm64_sys_ioctl 26, __arm64_sys_futex 24, __arm64_sys_openat 17, __arm64_sys_pread64 14, __arm64_sys_nanosleep 10, __arm64_sys_epoll_pwait 7, __arm64_sys_newfstatat 5, __arm64_sys_read 3, __arm64_sys_epoll_ctl 1
+  system call in stack (softirq): __arm64_sys_futex 4, __arm64_sys_nanosleep 2, - 2, __arm64_sys_ioctl 1
+  into softirq from:
+      2.0% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- arch_local_irq_enable
+      0.3% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- futex_wait_queue
+      0.3% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- finish_task_switch.isra.0
+      0.3% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- do_notify_resume <- el0_svc <- el0t_64_sync_handler
+  hottest functions (self): __d_lookup 10.1%, arch_local_irq_enable 7.1%, proc_fill_cache 3.7%, arch_local_irq_restore 3.4%, el0_svc_common.constprop.0 3.0%, runtime.unlock2 2.4%, find_vmap_area 2.4%, [unknown] 2.0%, internal/runtime/syscall/linux.Syscall6.abi0 1.7%, lockref_put_or_lock 1.3%, invoke_syscall 1.3%, check_heap_object 1.3%, runtime.tryDeferToSpanScan 1.3%, os.(*File).readdir 1.3%, runtime.lock2 1.3%
+  top stacks (outermost first, 10 frames from the leaf):
+      9.8% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_getdents64;iterate_dir;proc_tgid_base_readdir;proc_pident_readdir;proc_fill_cache;d_hash_and_lookup;__d_lookup
+      3.4% el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_getdents64;iterate_dir;proc_tgid_base_readdir;proc_pident_readdir;proc_fill_cache
+      3.0% el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_futex;do_futex;futex_wake;wake_up_q;arch_local_irq_restore
+      2.7% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_futex;do_futex;futex_wait;futex_wait_queue;schedule;__schedule;arch_local_irq_enable
+      2.0% __arm64_sys_getdents64;iterate_dir;proc_tgid_base_readdir;proc_pident_readdir;proc_fill_cache;filldir64;__check_object_size;__check_object_size.part.0;check_heap_object;find_vmap_area
+      1.7% el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_nanosleep;hrtimer_nanosleep;do_nanosleep;schedule;__schedule;arch_local_irq_enable
+      1.3% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_getdents64;iterate_dir;proc_tgid_base_readdir;proc_pident_readdir;proc_fill_cache;dput;lockref_put_or_lock
+      1.3% os.newFile;syscall.SetNonblock;syscall.fcntl;syscall.Syscall;syscall.RawSyscall6;internal/runtime/syscall/linux.Syscall6.abi0;el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0
+      1.3% runtime.goexit.abi0;main.main.gowrap1;main.sampleCPU;main.procTime;path/filepath.globWithLimit;path/filepath.glob;os.(*File).Readdirnames;os.(*File).readdir
+      1.0% ena_get_base_stats;ena_com_get_customer_metrics;ena_com_execute_admin_command;ena_com_wait_and_process_admin_cq_interrupts;wait_for_completion_timeout;__wait_for_common;schedule_timeout;schedule;__schedule;arch_local_irq_enable
+
+== conntrackd: 26 samples (0.1% of all), softirq in stack: 0 (0.0%)
+  entry of all samples: {'syscall': 16, 'user': 7, 'other': 3}
+  entry of softirq samples: {}
+  system call in stack (all): - 16, __arm64_sys_mmap 3, __arm64_sys_clone 2, __arm64_sys_recvfrom 2, __arm64_sys_openat 1, __arm64_sys_mprotect 1, __arm64_sys_munmap 1
+  system call in stack (softirq): 
+  into softirq from:
+  hottest functions (self): do_lookup_x 11.5%, zap_pte_range 7.7%, copy_present_pte 3.8%, free_pages_and_swap_cache 3.8%, __cxa_finalize 3.8%, kmem_cache_alloc 3.8%, arch_local_irq_enable 3.8%, __vsnprintf_internal 3.8%, __slab_free 3.8%, page_remove_rmap 3.8%, _dl_lookup_symbol_x 3.8%, exit_mmap 3.8%, do_dentry_open 3.8%, __skb_recv_udp 3.8%, mtree_range_walk 3.8%
+  top stacks (outermost first, 10 frames from the leaf):
+     11.5% _start;_dl_start;_dl_sysdep_start;dl_main;_dl_relocate_object;_dl_relocate_object_no_relro;_dl_lookup_symbol_x;do_lookup_x
+      7.7% do_group_exit;do_exit;exit_mm;mmput;__mmput;exit_mmap;unmap_vmas;unmap_page_range;zap_pmd_range.isra.0;zap_pte_range
+      3.8% __arm64_sys_clone;__do_sys_clone;kernel_clone;copy_process;dup_mm.constprop.0;dup_mmap;copy_page_range;copy_pud_range;copy_pte_range;copy_present_pte
+      3.8% __wake_up_parent;do_group_exit;do_exit;exit_mm;mmput;__mmput;exit_mmap;tlb_finish_mmu;tlb_batch_pages_flush;free_pages_and_swap_cache
+      3.8% _start;__libc_start_main@@GLIBC_2.34;__libc_start_call_main;main;[unknown];__run_exit_handlers;_dl_fini;[unknown];__cxa_finalize
+      3.8% __arm64_sys_clone;__do_sys_clone;kernel_clone;copy_process;dup_mm.constprop.0;dup_mmap;mas_expected_entries;mas_node_count_gfp;mas_alloc_nodes;kmem_cache_alloc
+      3.8% invoke_syscall;__arm64_sys_recvfrom;__sys_recvfrom;unix_stream_recvmsg;unix_stream_read_generic;unix_stream_data_wait;schedule_timeout;schedule;__schedule;arch_local_irq_enable
+      3.8% ctnl_local;[unknown];[unknown];[unknown];__snprintf_conntrack;__snprintf_conntrack_default;__snprintf_address;inet_ntoa;__snprintf;__vsnprintf_internal
+      3.8% __mmap_region;do_mas_munmap;do_mas_align_munmap;__split_vma;__vma_adjust;vma_mas_store;mas_store_prealloc;mas_destroy;kmem_cache_free;__slab_free
+      3.8% do_exit;exit_mm;mmput;__mmput;exit_mmap;unmap_vmas;unmap_page_range;zap_pmd_range.isra.0;zap_pte_range;page_remove_rmap
+
+per CPU: cpu000 ksoftirqd/N 9709, cpu001 ksoftirqd/N 9686
+
+/tmp/nbres/prof/20261114T070925Z-c7gn.large-k61/load: 21.3 s between snapshots 0 and 1 (perf record running)
+  natpair (all 8 threads) run   1.2% runqueue wait   3.5% slices/s   263.8 utime 0.7 stime 0.7 ticks/s
+  13 ksoftirqd/0       run  93.7% wait   6.3% slices/s  1011.6 utime+stime  93.6 ticks/s
+  20 ksoftirqd/1       run  93.8% wait   6.2% slices/s   761.8 utime+stime  93.7 ticks/s
+  4738 conntrackd      run   0.1% wait   0.0% slices/s     9.4 utime+stime   0.1 ticks/s
+  softirqs/s: NET_RX [12912, 12861], NET_TX [0, 0], TIMER [39, 31], SCHED [18, 18], RCU [185, 200]
+  cpu: user 0.9% nice 0.0% sys 2.0% idle 0.0% iowait 0.0% irq 0.0% softirq 97.1% steal 0.0%
+  psi: some avg10=8.88 avg60=5.58 avg300=2.69 total=13714566

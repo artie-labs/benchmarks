@@ -1,0 +1,64 @@
+19960 samples
+  swapper                    19837  99.4%
+  natpair                       62   0.3%
+  conntrackd                    27   0.1%
+  sysctl                        15   0.1%
+  perf                           4   0.0%
+  ksoftirqd/N                    3   0.0%
+  conntrack                      3   0.0%
+  kworker/0:3-eve                3   0.0%
+  ps                             2   0.0%
+  kworker/1:2-eve                1   0.0%
+  ssm-agent-worke                1   0.0%
+  kcompactd0                     1   0.0%
+  rcu_sched                      1   0.0%
+
+== natpair: 62 samples (0.3% of all), softirq in stack: 1 (1.6%)
+  entry of all samples: {'other': 43, 'syscall': 19}
+  entry of softirq samples: {'syscall': 1}
+  system call in stack (all): - 43, __arm64_sys_execve 4, __arm64_sys_epoll_pwait 4, __arm64_sys_write 3, __arm64_sys_nanosleep 2, __arm64_sys_epoll_ctl 2, __arm64_sys_futex 1, __arm64_sys_rt_sigreturn 1, __arm64_sys_clone 1, __arm64_sys_bind 1
+  system call in stack (softirq): __arm64_sys_write 1
+  into softirq from:
+      1.6% do_softirq <- __local_bh_enable_ip | __dev_queue_xmit <- neigh_hh_output <- ip_finish_output2 <- __ip_finish_output
+  hottest functions (self): [unknown] 62.9%, arch_local_irq_enable 4.8%, file_ra_state_init 1.6%, bpf_lsm_socket_sendmsg 1.6%, ep_poll 1.6%, nf_nat_ipv4_manip_pkt 1.6%, eventfd_write 1.6%, el0_svc_common.constprop.0 1.6%, __pi_clear_page 1.6%, fput 1.6%, setup_rt_frame 1.6%, __set_current_blocked 1.6%, alloc_vmap_area 1.6%, ep_refcount_dec_and_test 1.6%, remove_wait_queue 1.6%
+  top stacks (outermost first, 10 frames from the leaf):
+     46.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      4.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      4.8% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      3.2% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      1.6% do_execveat_common.isra.0;bprm_execve;bprm_execve.part.0;do_open_execat;do_filp_open;path_openat;do_open;vfs_open;do_dentry_open;file_ra_state_init
+      1.6% el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_write;ksys_write;vfs_write;sock_write_iter;__sock_sendmsg;bpf_lsm_socket_sendmsg
+      1.6% [unknown];el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_epoll_pwait;do_epoll_pwait.part.0;do_epoll_wait;ep_poll
+      1.6% [unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown];[unknown]
+      1.6% do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_futex;do_futex;futex_wait;futex_wait_queue;schedule;__schedule;arch_local_irq_enable
+      1.6% ip_rcv;ip_rcv_finish;ip_forward;ip_forward_finish;ip_output;nf_hook_slow;nf_nat_ipv4_out;nf_nat_inet_fn;nf_nat_manip_pkt;nf_nat_ipv4_manip_pkt
+
+== conntrackd: 27 samples (0.1% of all), softirq in stack: 0 (0.0%)
+  entry of all samples: {'syscall': 15, 'other': 7, 'user': 5}
+  entry of softirq samples: {}
+  system call in stack (all): - 17, __arm64_sys_mmap 2, __arm64_sys_sendto 2, __arm64_sys_brk 2, __arm64_sys_pselect6 1, __arm64_sys_clone 1, __arm64_sys_mprotect 1, __arm64_sys_execve 1
+  system call in stack (softirq): 
+  into softirq from:
+  hottest functions (self): [unknown] 11.1%, _dl_lookup_symbol_x 7.4%, mas_wr_modify 3.7%, yylex 3.7%, core_sys_select 3.7%, page_add_file_rmap 3.7%, kmem_cache_alloc 3.7%, __pi_clear_page 3.7%, find_mergeable_anon_vma 3.7%, __handle_mm_fault 3.7%, __flush_tlb_range 3.7%, __wake_up_common_lock 3.7%, page_remove_file_rmap 3.7%, sigprocmask 3.7%, release_pages 3.7%
+  top stacks (outermost first, 10 frames from the leaf):
+      7.4% _start;__libc_start_main@@GLIBC_2.34;__libc_start_call_main;main;select_main_loop;[unknown];ctnl_local;[unknown];[unknown]
+      3.7% ksys_mmap_pgoff;vm_mmap_pgoff;do_mmap;mmap_region;__mmap_region;do_mas_munmap;do_mas_align_munmap;mas_store_prealloc;mas_wr_store_entry.isra.0;mas_wr_modify
+      3.7% _start;__libc_start_main@@GLIBC_2.34;__libc_start_call_main;main;init_config;yyparse;yylex
+      3.7% _start;_dl_start;_dl_sysdep_start;dl_main;_dl_relocate_object;_dl_relocate_object_no_relro;_dl_lookup_symbol_x
+      3.7% main;select_main_loop;__select;el0t_64_sync_handler;el0_svc;do_el0_svc;el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_pselect6;core_sys_select
+      3.7% do_page_fault;handle_mm_fault;__handle_mm_fault;handle_pte_fault;do_fault;do_read_fault;xfs_filemap_map_pages;filemap_map_pages;do_set_pte;page_add_file_rmap
+      3.7% invoke_syscall;__arm64_sys_clone;__do_sys_clone;kernel_clone;copy_process;dup_mm.constprop.0;dup_mmap;anon_vma_fork;anon_vma_clone;kmem_cache_alloc
+      3.7% _start;__libc_start_main@@GLIBC_2.34;__libc_start_call_main;main;select_main_loop;[unknown];[unknown]
+      3.7% do_page_fault;handle_mm_fault;__handle_mm_fault;handle_pte_fault;do_anonymous_page;alloc_zeroed_user_highpage_movable;vma_alloc_folio;__folio_alloc;__alloc_pages;__pi_clear_page
+      3.7% el0_da;do_mem_abort;do_translation_fault;do_page_fault;handle_mm_fault;__handle_mm_fault;handle_pte_fault;do_anonymous_page;__anon_vma_prepare;find_mergeable_anon_vma
+
+per CPU: cpu000 swapper 9924, cpu001 swapper 9913
+
+/tmp/nbres/prof/20261114T070925Z-c7gn.large-k61/idle: 21.2 s between snapshots 0 and 1 (perf record running)
+  natpair (all 45 threads) run   0.5% runqueue wait   0.1% slices/s   337.8 utime 0.3 stime 0.2 ticks/s
+  13 ksoftirqd/0       run   0.0% wait   0.0% slices/s     2.6 utime+stime   0.0 ticks/s
+  20 ksoftirqd/1       run   0.0% wait   0.0% slices/s     2.0 utime+stime   0.0 ticks/s
+  4738 conntrackd      run   0.0% wait   0.0% slices/s     8.3 utime+stime   0.0 ticks/s
+  softirqs/s: NET_RX [24, 30], NET_TX [0, 0], TIMER [17, 26], SCHED [56, 59], RCU [66, 60]
+  cpu: user 0.6% nice 0.0% sys 1.3% idle 98.1% iowait 0.0% irq 0.0% softirq 0.0% steal 0.0%
+  psi: some avg10=0.09 avg60=3.73 avg300=3.39 total=19659879

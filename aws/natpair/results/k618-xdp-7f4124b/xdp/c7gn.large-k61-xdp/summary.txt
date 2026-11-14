@@ -1,0 +1,26 @@
+ping replies 10708, last seq 11213
+  attach xdp_pass.o (mtu-default) longest reply gap 30 ms (starts 2017 ms after), lost 0 of 348
+  attach mtu-default done      longest reply gap 30 ms (starts 2001 ms after), lost 0 of 347
+  mtu 3499                     longest reply gap 30 ms (starts -1442 ms after), lost 0 of 347
+  attach xdp_pass.o (mtu-3499) longest reply gap 30 ms (starts -1445 ms after), lost 0 of 347
+  attach mtu-3499 done         longest reply gap 30 ms (starts -1456 ms after), lost 0 of 348
+  detach (mtu-3499)            longest reply gap 30 ms (starts -1459 ms after), lost 0 of 348
+  detach mtu-3499 done         longest reply gap 30 ms (starts -1481 ms after), lost 0 of 347
+  mtu 3498                     longest reply gap 30 ms (starts 4018 ms after), lost 0 of 348
+  attach xdp_pass.o (pass-1)   longest reply gap 30 ms (starts 4037 ms after), lost 0 of 349
+  attach pass-1 done           longest reply gap 30 ms (starts 4027 ms after), lost 0 of 350
+  detach (pass-1)              longest reply gap 30 ms (starts -471 ms after), lost 0 of 348
+  detach pass-1 done           longest reply gap 30 ms (starts -511 ms after), lost 0 of 348
+  attach xdp_pass.o (pass-2)   longest reply gap 30 ms (starts 3017 ms after), lost 0 of 349
+  attach pass-2 done           longest reply gap 30 ms (starts 3007 ms after), lost 0 of 349
+  detach (pass-2)              longest reply gap 30 ms (starts 560 ms after), lost 0 of 347
+  detach pass-2 done           longest reply gap 30 ms (starts 519 ms after), lost 0 of 348
+  attach xdp_drop.o (drop)     longest reply gap 30 ms (starts -1967 ms after), lost 0 of 349
+  attach drop done             longest reply gap 30 ms (starts -1977 ms after), lost 0 of 349
+  detach (drop)                longest reply gap 30 ms (starts -981 ms after), lost 0 of 347
+  detach drop done             longest reply gap 30 ms (starts -1021 ms after), lost 0 of 347
+  restored mtu 9001            longest reply gap 30 ms (starts -1034 ms after), lost 0 of 348
+  nox-1m: queue rx 0.994M pps, xdp_drop 0.000M pps, netdev rx_packets 0.994M, pps_allowance_exceeded 0/s, CPU busy 72.2% of 2 (softirq 70.4%), 1452 ns per received packet; per-queue rx [492997, 501001]
+  nox-3m: queue rx 1.281M pps, xdp_drop 0.000M pps, netdev rx_packets 1.281M, pps_allowance_exceeded 0/s, CPU busy 100.0% of 2 (softirq 98.6%), 1561 ns per received packet; per-queue rx [626510, 654593]
+  xdp-1m: queue rx 1.000M pps, xdp_drop 1.000M pps, netdev rx_packets 1.000M, pps_allowance_exceeded 0/s, CPU busy 7.6% of 2 (softirq 7.3%), 152 ns per received packet; per-queue rx [505988, 493976]
+  xdp-3m: queue rx 2.047M pps, xdp_drop 2.047M pps, netdev rx_packets 2.047M, pps_allowance_exceeded 0/s, CPU busy 5.5% of 2 (softirq 5.2%), 54 ns per received packet; per-queue rx [1018237, 1029198]

@@ -608,9 +608,125 @@ with `"congested":true`) and `path_check_failed`. Runs: [results/fix-7f4124b](re
   in a transient unit's command as a separator. The rules were removed by hand 3 minutes later, while that NAT was the
   standby.
 
+# Kernel 6.18 and XDP (2026-11-14)
+
+Build 7f4124b (bench/release-udp, natpair#15, sha256 2220b753…15db, binary 420c8fed), module from the same commit, on
+a fresh deploy. All five instances registered with SSM on the first boot, so no NAT was replaced for the SSM quirk.
+c7gn.large NATs on 6.18.62-127.179, then both replaced onto 6.1.190-237.442, then resized in place to c7gn.medium on
+6.1. Jobs: [k-prof](jobs/k-prof.sh), [xdp-ena](jobs/xdp-ena.sh), [b-medium](jobs/b-medium.sh). Runs, profile and XDP
+summaries: [results/k618-xdp-7f4124b](results/k618-xdp-7f4124b). Profiles come from [box/prof.sh](box/prof.sh) and
+[scripts/prof-summary.py](scripts/prof-summary.py). Single runs unless a range is given.
+
+## Why 6.18 starves the daemon
+
+**The daemon does the NAT's forwarding.** Under full-rate TCP on 6.18, 96.7% of the daemon's perf samples are
+forwarding softirq work (`net_rx_action`, `ena_io_poll`, the firewall, `ena_start_xmit`) run on the daemon's own
+thread, and 3.6% are its own code. 94% of those samples entered softirq through `do_softirq` from
+`__local_bh_enable_ip`: whenever the daemon's kernel code re-enabled bottom halves, the kernel ran the pending
+receive work right there. Half of all its samples come from one place: `fpsimd_restore_current_state` on the return to
+user mode after a system call. On arm64 that restore runs with bottom halves off, so every system call of a thread that
+was switched out ends in up to 2 ms of forwarding. The rest come from socket locks in TCP send and receive
+(`lock_sock_nested`, `release_sock`), the firewall's counters and the daemon's own transmits. enapoll and conntrackd
+show the same pattern: 87% of their samples are forwarding, 81% entered through `__local_bh_enable_ip`.
+
+| Full-rate TCP, 32 flows, c7gn.large, same build | 6.18.62 | 6.1.190 |
+| --- | --- | --- |
+| Unprofiled 60 s run | 20.1 Gbps on the shared ENI. Daemon 31.5% of a CPU (30.9% system). 11 `lease store unreachable`, 35 DNS or probe timeouts, enapoll missed 18.8 s | 19.1 Gbps. Daemon 1.3%. 0 lease failures, 0 DNS timeouts, enapoll missed 0.06 s |
+| Profiled 90 s run | 7 lease failures, 28 DNS or probe timeouts, and 1 takeover: `lease lost: another owner took the lease while the store was unavailable` | 0 lease failures, 0 DNS timeouts, 2 failed probes |
+| Share of all perf samples (2 CPUs, 20 s) | ksoftirqd 66.7%, daemon 15.2%, enapoll 10.8% | ksoftirqd 97.1%, daemon 0.4%, enapoll 1.5% |
+| Daemon samples in forwarding softirq | 96.7% | 5.1% |
+| ksoftirqd/0 and /1 running | 66% of each CPU | 94% of each CPU |
+| Daemon threads, their run time and runqueue wait (summed) | 46 threads, 30% of a CPU running, 258% waiting | 8 threads, 1.2% running, 3.5% waiting |
+| CPU pressure (`/proc/pressure/cpu` some avg10) | 94.5 | 8.9 |
+| Daemon system calls in 20 s (perf trace) | 9,236. Average `close` 1.38 ms, `read` 0.45 ms, `clone` 11.4 ms | 13,096. Average `close` 0.002 ms, `read` 0.004 ms, `clone` 0.32 ms |
+| Idle | Daemon 0.4% of a CPU, no softirq in its samples | |
+
+**natpair isn't doing anything expensive.** Idle, the daemon uses 0.4% of a CPU. Its system calls are few and cheap on
+6.1. In 3 s of strace on the 6.18 owner they were: HTTPS reads and writes to the lease store on port 443 (42 in 3 s),
+DNS to the VPC resolver, one conntrack netlink socket (`NETLINK_NETFILTER`), and child processes: `sysctl -n
+net.ipv4.ip_forward` twice a second (`keepForwardingEnabled`), and once a health round `conntrackd -s`, `-i` and
+`-e`, `conntrack -S` and `sysctl` of the connection count. Over 20 s, perf trace counted mostly futex (1,521),
+epoll_pwait (1,769), nanosleep (1,217), epoll_ctl (887), close (648), read (639), setsockopt (310), write (233) and 52
+clones. On 6.18 the same calls take 100 to 700 times longer because each one absorbs forwarding, and the Go runtime
+then starts more threads (46 against 8), each of which absorbs it too.
+
+**It's a kernel behavior change.** Both kernels have the same relevant configuration: `PREEMPT_NONE`, HZ 100, and no
+`IRQ_TIME_ACCOUNTING`. ENA is 2.17.4g on both. In 6.1, `do_softirq()` and the interrupt exit path skip pending
+softirqs while ksoftirqd is runnable ("softirq: Let ksoftirqd do its job", 4cd13c21), so under sustained load
+ksoftirqd does all the forwarding and the scheduler shares each CPU between it and the daemon. That's the 6.1 profile.
+Upstream reverted it in 2023 (d15121be, "Revert 'softirq: Let ksoftirqd do its job'"), so on 6.18 any task that
+re-enables bottom halves or takes an interrupt runs the forwarding inline. Without `IRQ_TIME_ACCOUNTING`, that time
+counts as the task's own system time and scheduler runtime, which is why the daemon shows 30% system CPU, and why the
+scheduler then also makes it wait behind ksoftirqd (258% runqueue wait across its threads).
+
+**Threaded NAPI on the owner fixes it on 6.18.** With `echo 1 > /sys/class/net/ens*/threaded` on the owner for one
+60 s run, receive processing moved into `napi/` threads the scheduler shares the CPU with, like ksoftirqd on 6.1:
+19.6 Gbps on the shared ENI (-2.7% against the 20.1 Gbps baseline), daemon 0.9% of a CPU, 0 lease failures, 0 DNS
+timeouts, 4 failed probes (1 congested round, path alive). Reading the ENA counters once a second instead of every
+10 ms (enapoll's `POLL=1s`) only helped a little: 3 lease failures and 14 DNS or probe timeouts, daemon still 30.6%.
+So the bench's 10 ms counter reads add to the starvation but don't cause it.
+
+**The minimal natpair-side fix**, not made here: turn on threaded NAPI (`/sys/class/net/<interface>/threaded` = 1) for
+the shared ENI, and the primary ENI, when natpair configures them, on every kernel. Only that part of #13: no nice
+-10, no `CPUWeight`, which were what let a flood to the own address take forwarding capacity. The shared ENI's
+setting must be applied again after each takeover, because the attached ENI is a new network device. One run is thin
+evidence, so it needs the rc-validate and rc-udp checks on both kernel lines. The other option is #14's default kernel
+going back to 6.1. Replacing the twice-a-second `sysctl` child with a read of `/proc/sys/net/ipv4/ip_forward` would
+cut the daemon's exposure a little but doesn't fix it.
+
+## natpair#15 on c7gn.medium, kernel 6.1
+
+Same build, both NATs c7gn.medium (1 vCPU) on 6.1.190. Medians of 3 runs of 60 s, range in parentheses. The 6.18
+column is the natpair#15 section above.
+
+| Load | 6.1.190 | 6.18.62 (natpair#15 section) |
+| --- | --- | --- |
+| UDP 64 B at 800k pps | 1 takeover (0 to 1) a run, 525k pps forwarded (517k to 527k), 0 lease failures, 4 (0 to 7) DNS or probe timeouts, 22 (21 to 23) failed probes, ping loss 56.0% (54.8 to 60.2), longest gap 10.1 s (0.2 to 14.3). 1 to 2 `path is alive` lines, 7 to 12 congested rounds | 4 takeovers in every run, 213k pps forwarded, ping loss 77.1% |
+| UDP 64 B at 1.2M pps | 1 takeover (1 to 2) a run, 524k pps forwarded (232k to 545k, the low run had 2 takeovers), 0 lease failures, 4 (2 to 7) DNS or probe timeouts, 28 (25 to 32) failed probes, ping loss 79.1% (76.0 to 81.8), longest gap 14.0 s (0.5 to 15.2). 1 to 2 `path is alive` lines, 11 to 19 congested rounds | 3 to 4 takeovers in every run, 183k pps forwarded, ping loss 89.0% |
+| TCP as fast as 32 flows go | 8.71 Gbps received (8.60 to 8.74), 9.0 Gbps on the shared ENI, 0 takeovers, 0 lease failures, 0 DNS timeouts, 1 failed probe a run, ping loss 3.6% (3.5 to 4.5), longest gap 0.05 s | not run |
+
+- **On 6.1 the medium never lost its lease.** All 6 ownership sessions that ended in the UDP runs ended `stepped down
+  after corroborated path failure`, against 20 of 23 on the lease on 6.18. The daemon used 0.6 to 1.2% of the CPU
+  (5.5 to 7.3% on 6.18), and the medium forwarded about 2.5 times as many small packets.
+- **#15 kept the owner in about half of the failed rounds.** Of 142 health rounds with a failed probe, 72 were
+  congested (1 to 34 of 40 handshakes completed) and didn't count. 61 had 0 of 40, which counts as a dead path, and
+  those led to the 6 step-downs. 2 had 40 of 40 and 7 tried no handshakes. A single saturated vCPU still drops every
+  handshake for seconds at a time, so the medium still flaps under small UDP above its CPU limit: 6 takeovers in 6 runs,
+  against 23 on 6.18.
+
+## ENA XDP limits
+
+A minimal XDP program ([xdp/pass.c](xdp/pass.c), `XDP_PASS` only) and one that drops UDP from the receiver's VPC
+([xdp/drop.c](xdp/drop.c)), attached natively (`ip link set dev ens5 xdpdrv obj ...`) to the standby's primary ENI,
+never to the owner. ENA 2.17.4g, c7gn.large, 2 queues. [box/xdp.sh](box/xdp.sh) pinged the owner 100 times a
+second throughout and the receiver flooded the standby's address with 64-byte UDP from random ports.
+[scripts/xdp-summary.py](scripts/xdp-summary.py) has the arithmetic. The standby ended both runs with no program, MTU
+9001 and 2 channels, checked after each job.
+
+| Check | 6.18.62 | 6.1.190 |
+| --- | --- | --- |
+| Attach at the primary ENI's MTU 9001 | Refused: `the current MTU (9001) is larger than the maximum allowed MTU (3502) while xdp is on` | Same |
+| MTU with a program attached | Up to 3502. The driver lowers `max_mtu` from 9216 to 3502 while one is attached. 3499 and 3498 attached | Same |
+| Queues | 2 of 2 combined before, during and after. ENA needed no channel change | Same |
+| Attach and detach | Each one restarts the interface (ENA's `interface_down` and `interface_up` rise by 1), and the command takes 10 to 44 ms. No ping reply gap over 40 ms at 100 a second and no lost replies, in 3 attaches and 3 detaches | Same, gaps up to 30 ms |
+| 1M pps flood, dropped by the kernel's firewall | 72% of the 2 CPUs, 1,437 ns per packet | 72%, 1,452 ns |
+| 2.07M pps offered, kernel drop | 1.43M pps received, both CPUs full, 1,403 ns per packet | 1.28M pps, both CPUs full, 1,561 ns |
+| 1M pps flood, `XDP_DROP` | 6.6% of the 2 CPUs, 132 ns per packet | 7.6%, 152 ns |
+| 2.07M pps offered, `XDP_DROP` | All 2.07M received and dropped, 9.0% busy, 87 ns per packet | 2.05M, 5.5% busy, 54 ns |
+
+- **XDP drops a packet 10 to 25 times more cheaply** than the kernel's firewall path: 50 to 150 ns a packet against
+  1,400 to 1,560 ns. The flood tool topped out at about 2.07M pps from one c7gn.xlarge, so XDP's own ceiling wasn't
+  reached. At these costs two CPUs would drop well past 10M pps, beyond what AWS's packet allowance lets in. No
+  allowance counter moved at 2.07M pps.
+- **What natpair would have to accept.** The shared ENI's MTU of 1500 is fine. The primary ENI would have to drop from
+  9001 to at most 3502, which changes conntrackd's copies to the peer: natpair routes them over the primary ENI because
+  its 9001 MTU fits the 8.9 KB datagrams in one packet. Every attach or detach restarts the interface, so on the shared
+  ENI it belongs before forwarding opens at a takeover, not on a serving owner. The restart cost no measurable ping gap
+  here, but it was measured on an idle interface.
+
 ## Status
 
-Destroyed on 2026-11-14 at 04:35 UTC after the release candidate and #15 runs, and verified empty with direct describe
-calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda, IAM). To rerun,
-follow the README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a local checkout of
-the module, and `nat_kernel` picks the NATs' kernel line.
+Destroyed on 2026-11-14 at 07:42 UTC after the kernel 6.18 and XDP runs (deploy at 06:46), and verified empty with
+direct describe calls (instances, Elastic IPs, ENIs, volumes, VPCs, peering, endpoints, the bucket, DynamoDB, Lambda,
+IAM). To rerun, follow the README's Deploy section with the build and module of choice. `tf/natpair.tf` points at a
+local checkout of the module, and `nat_kernel` picks the NATs' kernel line.

@@ -1,0 +1,114 @@
+20022 samples
+  ksoftirqd/N                13354  66.7%
+  natpair                     3042  15.2%
+  enapoll                     2172  10.8%
+  bash                         662   3.3%
+  conntrackd                   339   1.7%
+  sysctl                        82   0.4%
+  conntrack                     61   0.3%
+  bpftool                       47   0.2%
+  date                          36   0.2%
+  sleep                         33   0.2%
+  tr                            31   0.2%
+  awk                           31   0.2%
+  ssm-agent-worke               24   0.1%
+  kworker/0:0-eve               21   0.1%
+  perf                          16   0.1%
+
+== natpair: 3042 samples (15.2% of all), softirq in stack: 2941 (96.7%)
+  entry of all samples: {'other': 1676, 'syscall': 1244, 'interrupt': 95, 'kthread': 27}
+  entry of softirq samples: {'other': 1607, 'syscall': 1215, 'interrupt': 92, 'kthread': 27}
+  system call in stack (all): - 1798, __arm64_sys_write 362, __arm64_sys_connect 202, __arm64_sys_read 181, __arm64_sys_close 103, __arm64_sys_rt_sigreturn 100, __arm64_sys_setsockopt 92, __arm64_sys_getpeername 55, __arm64_sys_getsockname 45, __arm64_sys_clone 37, __arm64_sys_execve 20, __arm64_sys_futex 13
+  system call in stack (softirq): - 1726, __arm64_sys_write 359, __arm64_sys_connect 202, __arm64_sys_read 180, __arm64_sys_close 102, __arm64_sys_rt_sigreturn 100, __arm64_sys_setsockopt 92, __arm64_sys_getpeername 55, __arm64_sys_getsockname 45, __arm64_sys_clone 35, __arm64_sys_execve 16, __arm64_sys_bind 12
+  into softirq from:
+     50.4% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- exit_to_user_mode_loop <- el0_svc <- el0t_64_sync_handler
+      4.3% do_softirq <- __local_bh_enable_ip | nft_counter_eval <- nft_do_chain <- nft_do_chain_ipv4 <- nf_hook_slow
+      3.3% do_softirq <- __local_bh_enable_ip | fpsimd_save_and_flush_current_state <- restore_sigframe <- __arm64_sys_rt_sigreturn <- invoke_syscall
+      3.2% do_softirq <- __local_bh_enable_ip | __dev_queue_xmit <- neigh_hh_output <- ip_finish_output2 <- __ip_finish_output
+      2.7% do_softirq <- __local_bh_enable_ip | fpsimd_save_and_flush_current_state <- setup_rt_frame <- handle_signal <- arch_do_signal_or_restart
+      2.5% do_softirq <- __local_bh_enable_ip | lock_sock_nested <- tcp_sendmsg <- inet_sendmsg <- __sock_sendmsg
+      2.3% do_softirq <- __local_bh_enable_ip | release_sock <- tcp_recvmsg <- inet_recvmsg <- sock_recvmsg
+      2.2% do_softirq <- __local_bh_enable_ip | lock_sock_nested <- tcp_recvmsg <- inet_recvmsg <- sock_recvmsg
+      1.8% do_softirq <- __local_bh_enable_ip | release_sock <- tcp_sendmsg <- inet_sendmsg <- __sock_sendmsg
+      1.4% __irq_exit_rcu <- irq_exit_rcu | el0_interrupt <- __el0_irq_handler_common <- el0t_64_irq_handler <- el0t_64_irq
+  hottest functions (self): __pi_memcpy_generic 11.2%, ena_start_xmit 3.8%, tcp_gro_receive 3.6%, nft_do_chain 2.7%, eth_type_trans 2.6%, ena_clean_tx_irq 2.4%, [unknown] 2.1%, ena_rx_skb 2.0%, kmem_cache_alloc_node_noprof 1.8%, skb_release_data 1.7%, skb_segment 1.7%, kfree 1.7%, __slab_free 1.6%, __build_skb_around 1.6%, ena_com_prepare_tx 1.5%
+  top stacks (outermost first, 10 frames from the leaf):
+      7.4% __ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit;ena_tx_map_skb;__pi_memcpy_generic
+      3.7% ip_output;ip_finish_output;__ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit
+      3.6% handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;gro_receive_skb;dev_gro_receive;inet_gro_receive;tcp4_gro_receive;tcp_gro_receive
+      2.6% do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;eth_type_trans
+      2.3% do_softirq;do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq
+      2.0% do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;ena_rx_skb
+      1.7% __dev_xmit_skb;sch_direct_xmit;validate_xmit_skb_list;validate_xmit_skb;__skb_gso_segment;skb_mac_gso_segment;inet_gso_segment;tcp4_gso_segment;tcp_gso_segment;skb_segment
+      1.7% __do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq;napi_consume_skb;skb_release_data;skb_free_head;kfree
+      1.6% __dev_xmit_skb;sch_direct_xmit;validate_xmit_skb_list;validate_xmit_skb;__skb_gso_segment;skb_mac_gso_segment;inet_gso_segment;tcp4_gso_segment;tcp_gso_segment;__pi_memcpy_generic
+      1.6% call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq;napi_consume_skb;skb_release_data
+
+== enapoll: 2172 samples (10.8% of all), softirq in stack: 1890 (87.0%)
+  entry of all samples: {'other': 1715, 'syscall': 283, 'user': 93, 'interrupt': 81}
+  entry of softirq samples: {'other': 1696, 'syscall': 113, 'interrupt': 81}
+  system call in stack (all): - 1891, __arm64_sys_getdents64 104, __arm64_sys_ioctl 51, __arm64_sys_rt_sigreturn 30, __arm64_sys_openat 21, __arm64_sys_newfstatat 16, __arm64_sys_futex 15, __arm64_sys_pread64 10, __arm64_sys_nanosleep 9, __arm64_sys_read 7, __arm64_sys_close 7, __arm64_sys_epoll_pwait 4
+  system call in stack (softirq): - 1778, __arm64_sys_ioctl 32, __arm64_sys_rt_sigreturn 30, __arm64_sys_getdents64 19, __arm64_sys_futex 8, __arm64_sys_nanosleep 6, __arm64_sys_epoll_pwait 4, __arm64_sys_pread64 4, __arm64_sys_newfstatat 3, __arm64_sys_openat 3, __arm64_sys_read 1, __arm64_sys_close 1
+  into softirq from:
+     77.1% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- exit_to_user_mode_loop <- el0_svc <- el0t_64_sync_handler
+      1.7% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- finish_task_switch.isra.0
+      1.4% __irq_exit_rcu <- irq_exit_rcu | el0_interrupt <- __el0_irq_handler_common <- el0t_64_irq_handler <- el0t_64_irq
+      1.4% do_softirq <- __local_bh_enable_ip | fpsimd_save_and_flush_current_state <- restore_sigframe <- __arm64_sys_rt_sigreturn <- invoke_syscall
+      1.3% do_softirq <- __local_bh_enable_ip | fpsimd_save_and_flush_current_state <- setup_rt_frame <- handle_signal <- arch_do_signal_or_restart
+      1.2% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- exit_to_user_mode_loop <- el0_interrupt <- __el0_irq_handler_common
+      0.5% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- __d_lookup
+      0.4% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- arch_local_irq_enable
+      0.1% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- lookup_noperm_common
+      0.1% __irq_exit_rcu <- irq_exit_rcu | el1_interrupt <- el1h_64_irq_handler <- el1h_64_irq <- hrtimer_start_range_ns
+  hottest functions (self): __pi_memcpy_generic 9.4%, tcp_gro_receive 3.6%, ena_start_xmit 3.5%, eth_type_trans 2.7%, ena_clean_tx_irq 2.3%, __d_lookup 2.3%, kmem_cache_alloc_node_noprof 2.1%, nft_do_chain 2.0%, __slab_free 2.0%, __build_skb_around 1.8%, skb_segment 1.7%, ena_clean_rx_irq 1.7%, napi_build_skb 1.6%, arch_local_irq_restore 1.5%, ena_rx_skb 1.5%
+  top stacks (outermost first, 10 frames from the leaf):
+      6.5% __ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit;ena_tx_map_skb;__pi_memcpy_generic
+      3.5% handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;gro_receive_skb;dev_gro_receive;inet_gro_receive;tcp4_gro_receive;tcp_gro_receive
+      3.4% ip_output;ip_finish_output;__ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit
+      2.7% do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;eth_type_trans
+      2.2% el0_svc_common.constprop.0;invoke_syscall;__arm64_sys_getdents64;iterate_dir;proc_tgid_base_readdir;proc_pident_readdir;proc_fill_cache;try_lookup_noperm;d_lookup;__d_lookup
+      2.1% do_softirq;do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq
+      1.7% __dev_xmit_skb;sch_direct_xmit;validate_xmit_skb_list;validate_xmit_skb;__skb_gso_segment;skb_mac_gso_segment;inet_gso_segment;tcp4_gso_segment;tcp_gso_segment;skb_segment
+      1.6% ____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;ena_rx_skb;ena_alloc_skb;napi_build_skb
+      1.6% handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;ena_rx_skb;ena_alloc_skb;napi_build_skb;__napi_build_skb;__build_skb_around
+      1.5% do_softirq;do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq
+
+== conntrackd: 339 samples (1.7% of all), softirq in stack: 294 (86.7%)
+  entry of all samples: {'syscall': 183, 'other': 136, 'user': 8, 'interrupt': 7, 'kthread': 5}
+  entry of softirq samples: {'syscall': 157, 'other': 125, 'interrupt': 7, 'kthread': 5}
+  system call in stack (all): - 156, __arm64_sys_sendto 64, __arm64_sys_close 31, __arm64_sys_recvfrom 22, __arm64_sys_connect 18, __arm64_sys_exit_group 13, __arm64_sys_clone 10, __arm64_sys_accept 7, __arm64_sys_pselect6 5, __arm64_sys_mmap 4, __arm64_sys_openat 3, __arm64_sys_mprotect 3
+  system call in stack (softirq): - 137, __arm64_sys_sendto 62, __arm64_sys_close 30, __arm64_sys_recvfrom 21, __arm64_sys_connect 18, __arm64_sys_clone 7, __arm64_sys_accept 7, __arm64_sys_exit_group 5, __arm64_sys_pselect6 4, __arm64_sys_rt_sigreturn 2, __arm64_sys_mprotect 1
+  into softirq from:
+     32.2% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- exit_to_user_mode_loop <- el0_svc <- el0t_64_sync_handler
+     10.9% do_softirq <- __local_bh_enable_ip | nft_counter_eval <- nft_do_chain <- nft_do_chain_ipv4 <- nf_hook_slow
+      9.4% do_softirq <- __local_bh_enable_ip | unix_release_sock <- unix_release <- __sock_release <- sock_close
+      6.2% do_softirq <- __local_bh_enable_ip | __dev_queue_xmit <- neigh_hh_output <- ip_finish_output2 <- __ip_finish_output
+      5.9% do_softirq <- __local_bh_enable_ip | __skb_recv_udp <- udp_recvmsg <- inet_recvmsg <- sock_recvmsg
+      3.2% do_softirq <- __local_bh_enable_ip | fpsimd_save_and_flush_current_state <- setup_rt_frame <- handle_signal <- arch_do_signal_or_restart
+      2.9% do_softirq <- __local_bh_enable_ip | release_sock <- selinux_netlbl_socket_connect <- selinux_socket_connect <- security_socket_connect
+      2.4% do_softirq <- __local_bh_enable_ip | lock_sock_nested <- selinux_netlbl_socket_connect <- selinux_socket_connect <- security_socket_connect
+      2.1% do_softirq <- __local_bh_enable_ip | unix_accept <- do_accept <- __sys_accept4 <- __arm64_sys_accept
+      1.5% do_softirq <- __local_bh_enable_ip | fpsimd_restore_current_state <- exit_to_user_mode_loop <- asm_exit_to_user_mode <- ret_from_fork
+  hottest functions (self): __pi_memcpy_generic 9.1%, tcp_gro_receive 4.1%, __build_skb_around 3.2%, ena_start_xmit 3.2%, skb_release_data 2.9%, ena_clean_tx_irq 2.7%, arch_local_irq_restore 2.1%, nft_do_chain 1.8%, ena_com_cdesc_rx_pkt_get 1.8%, __update_cpu_freelist_fast 1.8%, xas_find_marked 1.5%, inet_gro_receive 1.5%, ena_com_prepare_tx 1.5%, kmem_cache_alloc_node_noprof 1.5%, dev_gro_receive 1.5%
+  top stacks (outermost first, 10 frames from the leaf):
+      6.5% __ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit;ena_tx_map_skb;__pi_memcpy_generic
+      4.1% handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;gro_receive_skb;dev_gro_receive;inet_gro_receive;tcp4_gro_receive;tcp_gro_receive
+      3.2% ip_output;ip_finish_output;__ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit
+      2.9% handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;ena_rx_skb;ena_alloc_skb;napi_build_skb;__napi_build_skb;__build_skb_around
+      2.7% do_softirq;do_softirq_own_stack;call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq
+      2.7% call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_tx_irq;napi_consume_skb;skb_release_data
+      1.8% call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;ena_com_rx_pkt;ena_com_cdesc_rx_pkt_get
+      1.5% __napi_poll;ena_io_poll;ena_clean_rx_irq;ena_refill_rx_bufs;ena_alloc_rx_buffer;page_pool_alloc_pages;page_pool_alloc_netmems;__page_pool_alloc_netmems_slow;page_pool_dma_map;xas_find_marked
+      1.5% __ip_finish_output;ip_finish_output2;neigh_hh_output;__dev_queue_xmit;__dev_xmit_skb;sch_direct_xmit;dev_hard_start_xmit;ena_start_xmit;ena_xmit_common;ena_com_prepare_tx
+      1.5% call_on_irq_stack;____do_softirq;__do_softirq;handle_softirqs;net_rx_action;__napi_poll;ena_io_poll;ena_clean_rx_irq;gro_receive_skb;dev_gro_receive
+
+per CPU: cpu000 enapoll 974, cpu000 ksoftirqd/N 6566, cpu000 natpair 1759, cpu001 bash 441, cpu001 enapoll 1198, cpu001 ksoftirqd/N 6788, cpu001 natpair 1283
+
+/tmp/nbres/prof/20261114T064938Z-c7gn.large-k618/load: 35.4 s between snapshots 0 and 1 (perf record running)
+  natpair (all 46 threads) run  30.0% runqueue wait 258.4% slices/s   385.1 utime 0.4 stime 29.5 ticks/s
+  14 ksoftirqd/0       run  66.0% wait  34.3% slices/s   158.2 utime+stime  65.9 ticks/s
+  22 ksoftirqd/1       run  66.6% wait  33.4% slices/s   184.4 utime+stime  67.0 ticks/s
+  5227 conntrackd      run   2.1% wait   0.0% slices/s     7.1 utime+stime   2.1 ticks/s
+  softirqs/s: NET_RX [13743, 13510], NET_TX [0, 0], TIMER [54, 43], SCHED [19, 19], RCU [106, 113]
+  cpu: user 0.4% nice 0.0% sys 0.9% idle 0.0% iowait 0.0% irq 0.0% softirq 98.7% steal 0.0%
+  psi: some avg10=94.47 avg60=66.65 avg300=28.84 total=115663187
