@@ -786,7 +786,10 @@ The comparisons are the release candidate (671d06f, [Release candidate](#release
 natpair#17 adds an overload guard for the shared ENI. The final build is ccbc006 from natpair's bench/release-xdp
 branch: bench/release-napi (707894d, natpair#16 on #15) plus natpair#17 at b973c97, tagged v0.1.99, tarball sha256
 c005814f62d374678631fa9458723be37d8d212e4c61caa4b7b9723ba37ec1b6, binary 19fd8d4d. The guard changed during the bench
-(see [Why it ended up like this](#why-it-ended-up-like-this)), so each row names the build it ran. Module from the same
+(see [Why it ended up like this](#why-it-ended-up-like-this)), so each row names the build it ran. After the bench, the branch
+moved to 446ea59 (natpair#17 at e723adb, tarball sha256 26582d7050b2bcd95e8ae54c207d3a6482aa234b492b43a475c4c9ff7d5e6a98):
+it also finds receive threads whose names a kernel cut at 15 characters (not the case for ens6) and installs ethtool,
+which the AMI already has. Neither ran here. Module from the same
 branch, fresh deploy at 10:45 UTC, both NATs c7gn.medium on 6.18.62-127.179, then resized in place to c7gn.large for the
 sanity runs. All five instances registered with SSM on the first boot. Jobs: [xdp-sat](jobs/xdp-sat.sh) (`SIDES` and
 `CASES` pick the side and loads), [xdp-flood](jobs/xdp-flood.sh), [fix-failover](jobs/fix-failover.sh),
