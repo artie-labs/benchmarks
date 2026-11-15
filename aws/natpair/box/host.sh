@@ -76,6 +76,26 @@ if [[ $role == nat ]]; then
   { grep -H . $sys/class/net/ens*/threaded | sed "s#^$sys/#/sys/#"; ps -eo ni,comm | grep 'napi/'; } > threaded.txt 2>&1
   nic_stats > nic-start.txt
   if [[ -e /var/lib/natpair/overload-guard-off ]]; then echo off; else echo on; fi > guard.txt
+  systemctl is-active irqbalance > irqbalance-start.txt 2>&1
+  grep -E 'CPU0|ens[0-9]+-Tx-Rx' /proc/interrupts > interrupts-start.txt
+  # Once a second while enapoll samples: the CPU each network queue's interrupt goes to, and for each napi/ receive
+  # thread the CPU it last ran on and its CPU time so far in clock ticks (utime plus stime from /proc/<pid>/stat).
+  (
+    while kill -0 "$sampler" 2> /dev/null; do
+      t=$(date +%s.%N)
+      for irq in $(grep -E 'ens[0-9]+-Tx-Rx' /proc/interrupts | cut -d: -f1); do
+        echo "$t irq $(grep "^ *$irq:" /proc/interrupts | awk '{print $NF}') $(cat /proc/irq/$irq/effective_affinity_list 2> /dev/null)"
+      done
+      for pid in $(pgrep '^napi/'); do
+        stat=$(cat /proc/$pid/stat 2> /dev/null) || continue
+        comm=${stat#*(}
+        comm=${comm%%)*}
+        read -r -a f <<< "${stat##*) }"
+        echo "$t napi $comm ${f[36]} $((f[11] + f[12]))"
+      done
+      sleep 1
+    done
+  ) > placement.txt &
   # Connection table size and the kernel's conntrack drops, once a second, for as long as enapoll samples, so a run
   # stopped early ends here too.
   (
@@ -194,6 +214,7 @@ if [[ $role == nat ]]; then
   for irq in $(grep -E 'ens[0-9]+-Tx-Rx' /proc/interrupts | cut -d: -f1); do
     echo "$(grep "^ *$irq:" /proc/interrupts | awk '{print $NF}') $(cat /proc/irq/$irq/effective_affinity_list)"
   done > irq.txt
+  grep -E 'CPU0|ens[0-9]+-Tx-Rx' /proc/interrupts > interrupts-end.txt
   systemctl is-active irqbalance > irqbalance.txt 2>&1
   dmesg 2> /dev/null | grep -c 'table full' > conntrack-table-full.txt
 fi

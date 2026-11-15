@@ -181,6 +181,13 @@ sections (`CASES`) cover the release candidate's checks, the small-UDP and own-a
 after it clears, a handover during a flood and CPU per packet. Queue one job per section, with `CASES=...` on the
 first line, so results reach the bucket after each.
 
+The natpair#10 (interrupt spreading) A/B with #16 uses [irq-ab](jobs/irq-ab.sh) (prepend `BUILD=` and `SETTLE=`), and
+[irq-swap](jobs/irq-swap.sh) (prepend `KEY=`, `SHA=` and `IRQBALANCE=on|off`), which installs another build from
+`natpair/builds/` in the bucket on both NATs and turns irqbalance on or off. Each NAT run records where every queue
+interrupt and `napi/` receive thread ran, once a second (`placement` in the summary), and
+[box/irqwatch.sh](box/irqwatch.sh) records the same between runs. [scripts/irq-table.py](scripts/irq-table.py) prints
+one line per run.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 

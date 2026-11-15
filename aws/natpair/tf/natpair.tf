@@ -6,10 +6,10 @@ resource "aws_eip" "shared" {
 # Phases 2 and 3 and the release candidate run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes
 # from a local checkout of the same commit, which matches the build's install.sh. The path assumes this repo is at
 # <workspace>/benchmarks.worktrees/<name> and natpair's bench branch at <workspace>/natpair.worktrees/<branch>,
-# here final.
+# here napi-only (natpair bench/napi-only) or napi-irq.
 # Phase 1 used git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
 module "natpair" {
-  source = "../../../../../natpair.worktrees/final/terraform"
+  source = "../../../../../natpair.worktrees/napi-only/terraform"
 
   name    = var.name
   pair_id = var.name
@@ -19,7 +19,6 @@ module "natpair" {
   shared_eip_allocation_id = aws_eip.shared.allocation_id
 
   instance_type = var.nat_instance_type
-  kernel        = var.nat_kernel
 
   release        = var.natpair_release
   release_sha256 = var.natpair_release_sha256

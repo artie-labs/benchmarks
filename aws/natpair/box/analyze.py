@@ -531,6 +531,80 @@ def irq_layout(host_dir):
     return out
 
 
+def placement(host_dir, t0, t1):
+    """Where receive work ran over [t0, t1], from placement.txt (sampled once a second) and the queue rows of
+    /proc/interrupts at the start and end.
+
+    irq: per queue interrupt, the share of samples on each CPU. stacked: per interface, the share of samples in which
+    two or more of its queues' interrupts were on one CPU. napi: per receive thread, its CPU use in % of one CPU (100
+    ticks a second) and the share of samples it was last seen on each CPU. irq_counts: per queue, interrupts taken on
+    each CPU between the start and the end."""
+    path = os.path.join(host_dir, "placement.txt")
+    if not os.path.exists(path):
+        return None
+    irq_samples, napi_samples, stacked, by_time = {}, {}, {}, {}
+    for line in open(path):
+        f = line.split()
+        if len(f) < 4:
+            continue
+        t = float(f[0])
+        if f[1] == "irq":
+            by_time.setdefault(t, {})[f[2]] = f[3]
+            if t0 <= t <= t1:
+                irq_samples.setdefault(f[2], []).append(f[3])
+        elif f[1] == "napi" and len(f) >= 5:
+            napi_samples.setdefault(f[2], []).append((t, f[3], int(f[4])))
+    for t, layout in by_time.items():
+        if not t0 <= t <= t1:
+            continue
+        per_iface = {}
+        for name, cpu in layout.items():
+            per_iface.setdefault(name.split("-Tx-Rx")[0], []).append(cpu)
+        for iface, cpus in per_iface.items():
+            s = stacked.setdefault(iface, [0, 0])
+            s[1] += 1
+            if len(cpus) > len(set(cpus)):
+                s[0] += 1
+
+    def shares(values):
+        return {k: round(values.count(k) / len(values), 3) for k in sorted(set(values))}
+
+    out = {"irq": {k: shares(v) for k, v in sorted(irq_samples.items())},
+           "stacked": {k: round(v[0] / v[1], 3) for k, v in sorted(stacked.items()) if v[1]}, "napi": {}}
+    for comm, rows in sorted(napi_samples.items()):
+        inside = [r for r in rows if t0 <= r[0] <= t1]
+        if len(inside) < 2:
+            continue
+        seconds = inside[-1][0] - inside[0][0]
+        out["napi"][comm] = {"cpu_pct": round((inside[-1][2] - inside[0][2]) / seconds, 1) if seconds > 0 else None,
+                             "on_cpu": shares([r[1] for r in inside])}
+
+    def counts(name):
+        p = os.path.join(host_dir, name)
+        if not os.path.exists(p):
+            return None
+        lines = open(p).read().splitlines()
+        if not lines:
+            return None
+        cpus = lines[0].split()
+        rows = {}
+        for line in lines[1:]:
+            f = line.split()
+            rows[f[-1]] = [int(x) for x in f[1:1 + len(cpus)]]
+        return cpus, rows
+
+    start, end = counts("interrupts-start.txt"), counts("interrupts-end.txt")
+    if start and end:
+        out["irq_counts"] = {}
+        for name, after in end[1].items():
+            before = start[1].get(name, [0] * len(after))
+            out["irq_counts"][name] = {end[0][i]: after[i] - before[i] for i in range(len(after)) if after[i] != before[i]}
+    p = os.path.join(host_dir, "irqbalance-start.txt")
+    if os.path.exists(p):
+        out["irqbalance_start"] = open(p).read().strip()
+    return out
+
+
 def fair_summary(host_dir):
     """Per worker address: throughput, retransmits and TCP round trip from iperf3, and ping round trips."""
     out = {}
@@ -661,6 +735,7 @@ def analyze(run_dir):
         host["bpf"] = bpf_stats(host_dir)
         host["conntrack"] = conntrack_stats(host_dir, *steady)
         host["irq"] = irq_layout(host_dir)
+        host["placement"] = placement(host_dir, *steady)
         host["nic"] = nic_drops(host_dir)
         host["threaded"] = threaded(host_dir)
         host["fair"] = fair_summary(host_dir)
