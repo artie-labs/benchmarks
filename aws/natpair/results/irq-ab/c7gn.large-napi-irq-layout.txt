@@ -1,0 +1,105 @@
+== info 2026-11-15T08:15:01Z owner i-0131e3f42e7ecb1ff
+-- i-0131e3f42e7ecb1ff
+6.18.62-127.179.amzn2023.aarch64
+2
+8130afd3
+active
+active
+"release":"v0.1.99"
+/sys/class/net/ens5/threaded:1
+/sys/class/net/ens6/threaded:1
+ens5 queues 2
+ens6 queues 2
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=1 napi/ens6-4104=0 napi/ens6-4103=0
+	
+-- i-09edd6a6d28bddf4f
+6.18.62-127.179.amzn2023.aarch64
+2
+8130afd3
+active
+active
+"release":"v0.1.99"
+/sys/class/net/ens5/threaded:1
+ens5 queues 2
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=1
+	
+-- generator i-0a0ac6a588b7e8d0f
+iperf 3.22 (cJSON 1.7.15)
+2
+	
+== takeover 1 +5s 2026-11-15T08:26:37Z owner i-09edd6a6d28bddf4f
+-- i-09edd6a6d28bddf4f
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=1 napi/ens5-4097=0 napi/ens6-4104=1 napi/ens6-4103=1
+	
+-- i-0131e3f42e7ecb1ff
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=0
+	
+== takeover 2 +5s 2026-11-15T08:27:08Z owner i-0131e3f42e7ecb1ff
+-- i-0131e3f42e7ecb1ff
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=1 napi/ens5-4097=1 napi/ens6-4106=1 napi/ens6-4105=0
+	
+-- i-09edd6a6d28bddf4f
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=0
+	
+== takeover 3 +5s 2026-11-15T08:27:40Z owner i-09edd6a6d28bddf4f
+-- i-09edd6a6d28bddf4f
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=1 napi/ens6-4106=0 napi/ens6-4105=0
+	
+-- i-0131e3f42e7ecb1ff
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=1 napi/ens5-4097=0
+	
+== after 3 takeovers +15s 2026-11-15T08:28:13Z owner i-09edd6a6d28bddf4f
+-- i-09edd6a6d28bddf4f
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=0 napi/ens6-4106=0 napi/ens6-4105=1
+	
+-- i-0131e3f42e7ecb1ff
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=1 napi/ens5-4097=1
+	
+== journal since @1794731176
+-- i-0131e3f42e7ecb1ff
+lease_store_unreachable 0
+dns_or_probe_timeout 2
+ownership_acquired 1
+{"time":"2026-11-15T08:27:02.896582884Z","level":"INFO","msg":"turned on threaded receive processing","interfaces":1}
+{"time":"2026-11-15T08:27:06.042068383Z","level":"INFO","msg":"spread network queue interrupts across the CPUs","moved":2}
+	
+-- i-09edd6a6d28bddf4f
+lease_store_unreachable 0
+dns_or_probe_timeout 3
+ownership_acquired 2
+{"time":"2026-11-15T08:26:30.676156346Z","level":"INFO","msg":"turned on threaded receive processing","interfaces":1}
+{"time":"2026-11-15T08:26:35.233544197Z","level":"INFO","msg":"spread network queue interrupts across the CPUs","moved":2}
+{"time":"2026-11-15T08:27:35.109946425Z","level":"INFO","msg":"turned on threaded receive processing","interfaces":1}
+{"time":"2026-11-15T08:27:35.233759167Z","level":"INFO","msg":"spread network queue interrupts across the CPUs","moved":2}
+	
+== after the post-takeover run 2026-11-15T08:30:19Z owner i-09edd6a6d28bddf4f
+-- i-09edd6a6d28bddf4f
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1 ens6-Tx-Rx-0 0 ens6-Tx-Rx-1 1
+napi/ens5-4098=1 napi/ens5-4097=0 napi/ens6-4106=0 napi/ens6-4105=0
+	
+-- i-0131e3f42e7ecb1ff
+irqbalance inactive disabled
+ens5-Tx-Rx-0 0 ens5-Tx-Rx-1 1
+napi/ens5-4098=0 napi/ens5-4097=0
+	

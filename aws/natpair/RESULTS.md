@@ -976,3 +976,90 @@ Destroyed on 2026-11-14 at 18:38 UTC after the final release candidate runs, and
 calls in the sandbox account: no bench instances (5 terminated), Elastic IPs, bench ENIs, volumes, VPCs, peering, endpoints,
 the bucket, DynamoDB tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle
 instance and its own volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final`.
+
+# Is #10 needed with #16? (2026-11-15)
+
+natpair#10 pins ENA queue n's interrupt to CPU n every 5 s and turns irqbalance off, because in phase 1 irqbalance put
+both of the shared ENI's interrupts on one CPU and a c7gn.large forwarded 9.6 Gbps instead of about 18. That was
+v0.1.1, where forwarding ran in softirq on the CPU that took the interrupt. natpair#16 moves receive processing into
+threaded NAPI kernel threads (`napi/<interface>-<id>`) that the scheduler places. Every build benched so far had both,
+so this measures #16 alone.
+
+Builds, tagged v0.1.99 and built like the release workflow (goreleaser, Go 1.26.0):
+
+- **A**, natpair bench/napi-only 32be1de: master b9d2c47 (with #9) plus #16 at a977169. Tarball sha256
+  30ee6173f3e1f03518e86f53f524374c9165f10f947fb40412eb6b4c6254f522, binary 49740a87. irqbalance on, as the AMI ships it.
+- **B**, natpair bench/napi-irq 0c08f31: A plus #10 at b91c83b. Tarball sha256
+  b67ab709eea8d491732952f980abfb9aa25c5a16626feb239b389895061b95c8, binary 8130afd3. irqbalance off.
+
+Fresh deploy at 07:55 UTC with A on c7gn.large NATs, module from `natpair.worktrees/napi-only` (the same Terraform as
+napi-irq). That module predates #14, whose kernel input it lacks, and its AMI filter picked kernel 6.1, so the
+worktree's filter was pinned to 6.18 for the deploy only (uncommitted, as #14 does). Both NATs ran 6.18.62-127.179,
+and all five instances were SSM Online by 07:57. [irq-swap](jobs/irq-swap.sh) switched builds on the running NATs,
+the standby first: it installs the other binary and runs `systemctl disable --now irqbalance` (B, the state #10's
+install script and the reboot after it leave) or `systemctl enable --now irqbalance` (A). Order: large A, B, then
+both NATs resized in place to c7gn.xlarge (4 vCPUs, 4 queues per ENI), then xlarge B, A, so a drift over the session
+would favour opposite builds on the two sizes.
+
+For the xlarge, the generators went from c7gn.large to c7gn.xlarge and the receiver from c7gn.xlarge to c7gn.2xlarge.
+At 18.6 Gbps through a large NAT, a c7gn.large generator used 1.2 of its 2 cores and the c7gn.xlarge receiver 2.4 of
+4, so they couldn't feed the roughly 36 Gbps an xlarge's CPUs forward. Upsized, no generator CPU passed 56% busy and
+no receiver CPU 70%.
+
+Job: [irq-ab](jobs/irq-ab.sh), one per build and size: 3 rounds of 60 s TCP as fast as 32 flows go and TCP with 88-byte
+segments from 64 flows, then 3 takeovers (`natpair maintenance`, `natpair resume` once the other NAT owns), the layout
+65 s (A, irqbalance's minute) or 15 s (B, #10's 5 s loop) after the last, and one full-rate TCP run on the new owner.
+Each NAT now samples, once a second during a run, where each queue interrupt goes and the CPU each `napi/` thread last
+ran on and its CPU time (`placement` in the summary), and [box/irqwatch.sh](box/irqwatch.sh) recorded the same every
+2 s on both NATs for each job's whole 15 to 16 minutes, idle gaps and takeovers included. Runs, layouts, watch files
+and job logs: [results/irq-ab](results/irq-ab). [scripts/irq-table.py](scripts/irq-table.py) prints one line per run.
+Medians of 3 runs, range in parentheses. Throughput is iperf3's received total, packet rates the shared ENI's.
+
+| Load | c7gn.large, A (#16 only) | c7gn.large, B (#16 + #10) | c7gn.xlarge, A | c7gn.xlarge, B |
+| --- | --- | --- | --- | --- |
+| TCP as fast as 32 flows go | 18.24 Gbps (18.17 to 18.30), 1.67M pps. Both CPUs 100% | 18.27 Gbps (18.07 to 18.28), 1.67M pps. Both CPUs 100% | 15.62 Gbps (14.76 to 16.09), 1.47M pps. CPUs 52 to 68%. AWS dropping 42 to 99 a second | 16.23 Gbps (15.69 to 18.17), 1.50M pps. CPUs 57 to 66%. AWS dropping 78 to 197 a second |
+| TCP with 88-byte segments, 64 flows | 1.976M pps (1.971M to 1.978M). Both CPUs 100% | 1.965M pps (1.963M to 1.969M). Both CPUs 100% | 4.159M pps (4.142M to 4.174M). All 4 CPUs 98 to 100% | 4.161M pps (4.140M to 4.171M). All 4 CPUs 99 to 100% |
+| Shared ENI queue interrupts sharing a CPU, share of 1 s samples in each run | 100% in all 6 runs | 0% (queue n on CPU n) | 38 to 100% | 0% |
+| Full-rate TCP on the owner after 3 takeovers, one run | 17.76 Gbps, all four queue interrupts (both ENIs) on CPU 0 | 17.86 Gbps, spread | 25.09 Gbps, AWS dropping 351 a second, shared queues 1 and 2 on CPU 1 | 15.77 Gbps, AWS dropping 34 a second, spread |
+| Health in the 7 runs | 0 takeovers, 0 lease failures, 0 DNS timeouts, 0 to 2 failed probes a run | 0, 0, 0, 0 to 3 | 0, 0, 0, 0 to 1 | 0, 0, 0, 0 to 2 |
+| 3 takeovers | 3 ownership changes, 0 lease failures, 5 DNS or probe timeouts over both NATs | the same: 3, 0, 5 | the same: 3, 0, 5 | the same: 3, 0, 5 |
+
+- **irqbalance piles the shared ENI's queues onto one CPU most of the time, and it costs nothing with #16.** In A's
+  watch on the large, the owner had both of the shared ENI's interrupts on one CPU in 443 of 460 samples (96%), and
+  after the takeovers irqbalance put all four queue interrupts, both ENIs, on CPU 0. On the xlarge, two or more shared
+  queues shared a CPU in 343 of 460 owner samples (75%), all four on one CPU in 14. Throughput didn't move: the
+  large forwarded 18.24 Gbps with the queues piled against 18.27 spread, the same with all four on CPU 0 after the
+  takeovers (17.76 against 17.86, both under the sat runs and inside run-to-run spread), and the xlarge's 88-byte runs,
+  which fill all 4 CPUs, came out at 4.159M against 4.161M pps. The per-second rates show no dip either: the slowest
+  second of each large TCP run was 1.25M to 1.49M pps in A and 1.31M to 1.48M in B.
+- **Why: the interrupt no longer says where the work runs.** With threaded NAPI the interrupt only wakes the queue's
+  `napi/` thread, and the scheduler moves those threads across every CPU in both builds. No shared ENI thread spent
+  more than 71% of a run's samples on one CPU on the large, or 62% on the xlarge, whether its interrupt was pinned
+  (B) or piled (A). Each shared ENI thread used about 60% of a CPU on the large in both builds, and in every large run
+  both CPUs were 100% busy. Phase 1's 9.6 Gbps came from v0.1.1 doing all forwarding in softirq on the interrupt's
+  CPU, which #16 removes.
+- **The limiters.** The large and the xlarge's 88-byte runs are CPU-bound on every CPU in both builds, which is where
+  a bad placement would show. The xlarge's full-rate TCP is not: its CPUs sat at 52 to 68% while AWS dropped on the
+  shared ENI (`bw_out_allowance_exceeded` and `pps_allowance_exceeded`, 34 to 351 a second), and throughput wandered
+  from 14.8 to 25.1 Gbps in both builds, so those rows say nothing about placement either way. The 88-byte gap on the
+  large, 0.6% in A's favour, is the only one outside the ranges and goes against #10.
+- **#10 does what it says.** Each B takeover logged `spread network queue interrupts across the CPUs` (`moved`:2)
+  within 5 s of `turned on threaded receive processing`, and B's watches never saw two queues on one CPU.
+- **Limits of the method.** 3 runs per side, not alternated within a size. The build order flipped between sizes
+  instead. Builds were switched on the running NATs, not by booting new ones. The 6.18 pin was a local change to the
+  module, not #14 itself.
+
+**Verdict: close #10.** With #16, where the queue interrupts sit makes no measurable difference on a 2- or 4-vCPU
+NAT, even with irqbalance stacking the shared ENI's queues on one CPU most of the time. #10 then only adds a 5 s loop
+and turns irqbalance off for good (a rollback leaves it off).
+
+Cost of this deploy: 07:54 to 09:09 UTC, 1.25 h, about $1.45 (c7gn.large phase 0.6 h at $0.78 an hour, c7gn.xlarge
+phase with the larger generators and receiver 0.63 h at $1.53 an hour, S3, DynamoDB and Lambda 0.02).
+
+## Status
+
+Destroyed on 2026-11-15 at 09:08 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
+tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
+volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/napi-only` without the `kernel` input, which
+modules from #14 on take again.
