@@ -1,0 +1,47 @@
+=== peerroute 20:52:01
+standby i-09a9e7ec1c6c33b1a ready
+owner i-0fe5119a863bc4d64 (10.40.0.168), peer 10.40.0.65
+== round 1 20:52:43
+primary ens5 shared ens6
+before: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+deleted at 20:52:44.617
+restored after 4.1 s: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+route get: 10.40.0.65 dev ens5 src 10.40.0.168 uid 0
+{"time":"2026-11-15T20:52:48.70000306Z","level":"WARN","msg":"the route to the peer was missing or wrong and has been restored","checks":1}
+   94357 32070856            udp  --  *      ens5    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens5    0.0.0.0/0            0.0.0.0/0           
+       0        0            udp  --  *      ens6    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens6    0.0.0.0/0            0.0.0.0/0           
+IP FragCreates in 15 s: 0
+	
+== round 2 20:53:45
+primary ens5 shared ens6
+before: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+deleted at 20:53:46.949
+restored after 1.9 s: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+route get: 10.40.0.65 dev ens5 src 10.40.0.168 uid 0
+{"time":"2026-11-15T20:53:48.706019522Z","level":"WARN","msg":"the route to the peer was missing or wrong and has been restored","checks":1}
+  100671 24614908            udp  --  *      ens5    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens5    0.0.0.0/0            0.0.0.0/0           
+       0        0            udp  --  *      ens6    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens6    0.0.0.0/0            0.0.0.0/0           
+IP FragCreates in 15 s: 0
+	
+== round 3 20:54:47
+primary ens5 shared ens6
+before: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+deleted at 20:54:49.272
+restored after 4.5 s: 10.40.0.65 dev ens5 scope link src 10.40.0.168
+route get: 10.40.0.65 dev ens5 src 10.40.0.168 uid 0
+{"time":"2026-11-15T20:54:53.705936433Z","level":"WARN","msg":"the route to the peer was missing or wrong and has been restored","checks":1}
+   97081 24485964            udp  --  *      ens5    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens5    0.0.0.0/0            0.0.0.0/0           
+       0        0            udp  --  *      ens6    0.0.0.0/0            0.0.0.0/0            udp dpt:3780
+       0        0            all  -f  *      ens6    0.0.0.0/0            0.0.0.0/0           
+IP FragCreates in 15 s: 0
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+20261115T205208Z-c7gn.medium-final2-peerroute | ens5 rx 82 pps 0.00 Gbps tx 21826 pps 0.03 Gbps  | ens6 (shared) rx 36661 pps 0.12 Gbps tx 21737 pps 0.11 Gbps  | busy 0.51 cores soft 0.00 | 13799 ns/pkt | iperf 0.00 Gbps retr 0 | sources_ok=False
+=== done 20:56:25
+2026-11-15T20:56:25Z END 20261115T205135Z-medium-f2-peerroute.sh rc=0

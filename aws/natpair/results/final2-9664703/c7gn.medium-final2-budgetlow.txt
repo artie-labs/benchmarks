@@ -1,0 +1,54 @@
+== calibration on i-0fe5119a863bc4d64
+{"time":"2026-11-15T22:44:24.706291269Z","msg":"overload guard attached","busiest_cpu":1,"nic_drop_share":0.414,"rx_ring":2048,"duration":38189031}
+{"time":"2026-11-15T22:44:24.920751289Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":1,"nic_drop_share":0.414,"measured
+{"time":"2026-11-15T22:44:25.909260901Z","msg":"overload guard lowered its budget, because the NIC still drops packets","busiest_cpu":1,"nic_drop_share":0.16,"budget_pps_per_cpu":398635}
+{"time":"2026-11-15T22:44:54.207162393Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.808,"shed_share":0.558,"budget_pps_per_cpu":437736}
+{"time":"2026-11-15T22:44:55.108758738Z","msg":"overload guard cleared","busiest_cpu":0.133,"dropped":14467214}
+	
+cut budget 398635 per CPU x 1 queues = 398635 pps; step to 418566 pps for 45 s (RATE2=3348528 bits a flow)
+== run 1 on i-0fe5119a863bc4d64: load at 2026-11-15T22:45:56Z, step 25 s in
+	
+20261115T224531Z-c7gn.medium-final2-budgetlow-1 | ens5 rx 11 pps 0.00 Gbps tx 65 pps 0.00 Gbps  | ens6 (shared) rx 447388 pps 0.38 Gbps tx 387962 pps 0.33 Gbps  | busy 0.86 cores soft 0.00 | 1924 ns/pkt | iperf 0.00 Gbps retr 0 | ERRORS ['iperf-step1-5201.json: unable to read from stream socket: Resource temporarily unavailable', 'iperf-step1-5202.json: unable to read from stream socket: Resource temporarily unavailable'] | sources_ok=True
+{"time":"2026-11-15T22:45:56.646677651Z","msg":"overload guard attached","busiest_cpu":1,"nic_drop_share":0.176,"rx_ring":2048,"duration":39198558}
+{"time":"2026-11-15T22:45:56.854740331Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":1,"nic_drop_share":0.176,"measured
+{"time":"2026-11-15T22:46:21.348062419Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.828,"shed_share":0.267,"budget_pps_per_cpu":490188}
+{"time":"2026-11-15T22:46:22.047218166Z","msg":"overload guard cleared","busiest_cpu":0.25,"dropped":4311772}
+{"time":"2026-11-15T22:47:12.363076923Z","msg":"overload guard attached","busiest_cpu":0.968,"nic_drop_share":0.992,"rx_ring":2048,"duration":14502458}
+{"time":"2026-11-15T22:47:12.564153375Z","msg":"overload guard stood down: no packets reached it while it measured",}
+	
+== run 2 on i-0fe5119a863bc4d64: load at 2026-11-15T22:48:04Z, step 25 s in
+	
+20261115T224738Z-c7gn.medium-final2-budgetlow-2 | ens5 rx 11 pps 0.00 Gbps tx 56 pps 0.00 Gbps  | ens6 (shared) rx 544848 pps 0.46 Gbps tx 365471 pps 0.31 Gbps  | busy 0.84 cores soft 0.00 | 1547 ns/pkt | iperf 0.00 Gbps retr 0 | ERRORS ['iperf-step1-5201.json: unable to read from stream socket: Resource temporarily unavailable'] | sources_ok=True
+{"time":"2026-11-15T22:48:04.707398523Z","msg":"overload guard attached","busiest_cpu":1,"nic_drop_share":0.424,"rx_ring":2048,"duration":42336748}
+{"time":"2026-11-15T22:48:04.90963721Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":1,"nic_drop_share":0.424,"measured_
+{"time":"2026-11-15T22:48:05.935453582Z","msg":"overload guard lowered its budget, because the NIC still drops packets","busiest_cpu":1,"nic_drop_share":0.152,"budget_pps_per_cpu":398635}
+{"time":"2026-11-15T22:48:06.91061995Z","msg":"overload guard lowered its budget, because the NIC still drops packets","busiest_cpu":0.963,"nic_drop_share":0.053,"budget_pps_per_cpu":358581}
+{"time":"2026-11-15T22:48:29.208583761Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.776,"shed_share":0.61,"budget_pps_per_cpu":393867}
+{"time":"2026-11-15T22:48:29.908461675Z","msg":"overload guard cleared","busiest_cpu":0.6,"dropped":12788677}
+{"time":"2026-11-15T22:49:14.07646858Z","msg":"overload guard attached","busiest_cpu":1,"nic_drop_share":0.059,"rx_ring":2048,"duration":47524164}
+{"time":"2026-11-15T22:49:14.281479209Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":1,"nic_drop_share":0.059,"measured
+{"time":"2026-11-15T22:49:15.281435841Z","msg":"overload guard cleared","busiest_cpu":0.655,"dropped":4876}
+{"time":"2026-11-15T22:49:19.700956136Z","msg":"overload guard attached","busiest_cpu":0.967,"nic_drop_share":0.062,"rx_ring":2048,"duration":22980912}
+{"time":"2026-11-15T22:49:19.903443167Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":0.967,"nic_drop_share":0.062,"meas
+{"time":"2026-11-15T22:49:20.901374384Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.061,"shed_share":0.06,"budget_pps_per_cpu":1907}
+{"time":"2026-11-15T22:49:21.601653062Z","msg":"overload guard cleared","busiest_cpu":0,"dropped":4}
+	
+== run 3 on i-0fe5119a863bc4d64: load at 2026-11-15T22:50:12Z, step 25 s in
+	
+20261115T224946Z-c7gn.medium-final2-budgetlow-3 | ens5 rx 12 pps 0.00 Gbps tx 60 pps 0.00 Gbps  | ens6 (shared) rx 449251 pps 0.38 Gbps tx 371254 pps 0.32 Gbps  | busy 0.85 cores soft 0.00 | 1894 ns/pkt | iperf 0.00 Gbps retr 0 | ERRORS ['iperf-step1-5201.json: unable to read from stream socket: Resource temporarily unavailable', 'iperf-step1-5202.json: unable to read from stream socket: Resource temporarily unavailable'] | sources_ok=True
+{"time":"2026-11-15T22:50:12.746498504Z","msg":"overload guard attached","busiest_cpu":1,"nic_drop_share":0.159,"rx_ring":2048,"duration":44071719}
+{"time":"2026-11-15T22:50:12.953321369Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":1,"nic_drop_share":0.159,"measured
+{"time":"2026-11-15T22:50:13.949859683Z","msg":"overload guard lowered its budget, because the NIC still drops packets","busiest_cpu":0.967,"nic_drop_share":0.057,"budget_pps_per_cpu":400543}
+{"time":"2026-11-15T22:50:37.247111781Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.819,"shed_share":0.313,"budget_pps_per_cpu":440597}
+{"time":"2026-11-15T22:50:38.047904867Z","msg":"overload guard cleared","busiest_cpu":0.636,"dropped":4989117}
+{"time":"2026-11-15T22:51:14.033139367Z","msg":"overload guard attached","busiest_cpu":0.968,"nic_drop_share":0.059,"rx_ring":2048,"duration":48037304}
+{"time":"2026-11-15T22:51:14.242863595Z","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","busiest_cpu":0.968,"nic_drop_share":0.059,"meas
+{"time":"2026-11-15T22:51:15.23700034Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.689,"shed_share":0.388,"budget_pps_per_cpu":287055}
+{"time":"2026-11-15T22:51:16.237045937Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.731,"shed_share":0.319,"budget_pps_per_cpu":315666}
+{"time":"2026-11-15T22:51:17.237400873Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.777,"shed_share":0.262,"budget_pps_per_cpu":347137}
+{"time":"2026-11-15T22:51:18.236997561Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.84,"shed_share":0.187,"budget_pps_per_cpu":381469}
+{"time":"2026-11-15T22:51:19.236267081Z","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","busiest_cpu":0.845,"shed_share":0.102,"budget_pps_per_cpu":419616}
+{"time":"2026-11-15T22:51:21.140296231Z","msg":"overload guard cleared","busiest_cpu":0.935,"dropped":567609}
+{"time":"2026-11-15T22:51:27.754639654Z","msg":"overload guard attached","busiest_cpu":0.968,"nic_drop_share":0.094,"rx_ring":2048,"duration":8677201}
+{"time":"2026-11-15T22:51:27.955750567Z","msg":"overload guard stood down: no packets reached it while it measured",}
+	

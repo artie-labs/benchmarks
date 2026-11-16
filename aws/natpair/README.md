@@ -181,6 +181,13 @@ sections (`CASES`) cover the release candidate's checks, the small-UDP and own-a
 after it clears, a handover during a flood and CPU per packet. Queue one job per section, with `CASES=...` on the
 first line, so results reach the bucket after each.
 
+Round 2 (natpair bench/final2) adds [final2-checks](jobs/final2-checks.sh): the peer route (#11), a full connection
+table then a killed owner (#12), a killed daemon while the guard limits and the guard's budget recovery (#17), and the
+10-minute and TCP runs of the #15 A/B. [build-swap](jobs/build-swap.sh) (prepend `KEY=` and `SHA=`) installs another
+build from `natpair/builds/` in the bucket on both NATs, the standby first. `run.sh` takes `PATTERN=step STEP_AT=
+RATE2=`, which runs `RATE` for `STEP_AT` seconds and then `RATE2`. [scripts/failed-rounds.py](scripts/failed-rounds.py)
+counts takeovers and failed health rounds, and the longest run of them, from the NATs' journals.
+
 The natpair#10 (interrupt spreading) A/B with #16 uses [irq-ab](jobs/irq-ab.sh) (prepend `BUILD=` and `SETTLE=`), and
 [irq-swap](jobs/irq-swap.sh) (prepend `KEY=`, `SHA=` and `IRQBALANCE=on|off`), which installs another build from
 `natpair/builds/` in the bucket on both NATs and turns irqbalance on or off. Each NAT run records where every queue

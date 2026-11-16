@@ -1,0 +1,69 @@
+=== smoke 20:56:28
+run 20261115T205628Z-c7gn.medium-final2-smoke-tcp: owner i-0fe5119a863bc4d64, standby i-09a9e7ec1c6c33b1a, load at 2026-11-15T20:56:53Z
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+20261115T205628Z-c7gn.medium-final2-smoke-tcp | ens5 rx 11 pps 0.00 Gbps tx 56497 pps 0.03 Gbps  | ens6 (shared) rx 763604 pps 8.59 Gbps tx 707124 pps 8.56 Gbps  | busy 1.00 cores soft 0.00 | 1310 ns/pkt | iperf 9.64 Gbps retr 361717 | sources_ok=True
+run 20261115T205734Z-c7gn.medium-final2-smoke-churn: owner i-0fe5119a863bc4d64, standby i-09a9e7ec1c6c33b1a, load at 2026-11-15T20:58:00Z
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+20261115T205734Z-c7gn.medium-final2-smoke-churn | ens5 rx 72 pps 0.00 Gbps tx 21872 pps 0.02 Gbps  | ens6 (shared) rx 36599 pps 0.12 Gbps tx 21252 pps 0.11 Gbps  | busy 0.38 cores soft 0.00 | 10335 ns/pkt | iperf 0.00 Gbps retr 0 | sources_ok=False
+=== handover 20:58:41
+standby i-09a9e7ec1c6c33b1a ready
+run 20261115T205846Z-c7gn.medium-final2-handover-1: owner i-0fe5119a863bc4d64, standby i-09a9e7ec1c6c33b1a, load at 2026-11-15T20:59:11Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261115T205846Z-c7gn.medium-final2-handover-1 | ens5 rx 13 pps 0.00 Gbps tx 3013 pps 0.00 Gbps  | ens6 (shared) rx 173334 pps 1.99 Gbps tx 164229 pps 1.98 Gbps  | busy 0.12 cores soft 0.00 | 715 ns/pkt | iperf 2.00 Gbps retr 145894 | sources_ok=True
+standby i-0fe5119a863bc4d64 ready
+run 20261115T210044Z-c7gn.medium-final2-handover-2: owner i-09a9e7ec1c6c33b1a, standby i-0fe5119a863bc4d64, load at 2026-11-15T21:01:09Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261115T210044Z-c7gn.medium-final2-handover-2 | ens5 rx 15 pps 0.00 Gbps tx 3441 pps 0.00 Gbps  | ens6 (shared) rx 173405 pps 1.97 Gbps tx 163115 pps 1.97 Gbps  | busy 0.12 cores soft 0.00 | 686 ns/pkt | iperf 2.00 Gbps retr 149924 | sources_ok=True
+standby i-09a9e7ec1c6c33b1a ready
+run 20261115T210239Z-c7gn.medium-final2-handover-3: owner i-0fe5119a863bc4d64, standby i-09a9e7ec1c6c33b1a, load at 2026-11-15T21:03:04Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261115T210239Z-c7gn.medium-final2-handover-3 | ens5 rx 13 pps 0.00 Gbps tx 3903 pps 0.00 Gbps  | ens6 (shared) rx 172658 pps 1.95 Gbps tx 161153 pps 1.94 Gbps  | busy 0.13 cores soft 0.00 | 753 ns/pkt | iperf 2.00 Gbps retr 185469 | sources_ok=True
+=== done 21:04:29
+2026-11-15T21:04:29Z END 20261115T205138Z-medium-f2-smoke-handover.sh rc=0

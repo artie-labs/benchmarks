@@ -1063,3 +1063,164 @@ instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, 
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/napi-only` without the `kernel` input, which
 modules from #14 on take again.
+
+# Final release candidate (round 2, 2026-11-15)
+
+Build 9664703 from natpair's bench/final2 branch: master b9d2c47 (which has #9) with the PR heads merged in the order
+they will land: #11 (fd4a561), #12 (1e35e2b), #15 (cdebb1f, which contains #12), #16 (a977169), #14 (d2c6c25) and
+#17 (6fb518c). No #8, #10 or #13. Built like the release workflow (goreleaser with the repository's config, Go 1.26.0
+from go.mod), tagged v0.1.99, tarball sha256 6711be543646a688623abb09e984217a6500b03916b3d38b1b636c00aa2b233b,
+binary 2a4aa1eb. Before AWS: `go vet` (linux, darwin, test tags), `go test -race ./...`, golangci-lint v2.13.2 (CI's
+pin) with and without the test tags, `make test-privileged`, the fault campaign (`make test-campaign`, 19 of 19
+cases), `terraform validate` for the module and both examples, and the module's `terraform test` (5 of 5).
+
+For the #15 A/B, a second build without #15: bench/final2-no15 21d74a8, master plus #11, #12, #16, #14 and #17 with
+the same conflict resolutions. Its tree differs from 9664703 only in #15's 13 files. Tarball sha256
+196cba009bd33482f9c40edfd387448ff860d058a2dcb6a8acb619080d3a1c41, binary eb5a772a. Same checks, minus the campaign.
+
+Module from `natpair.worktrees/final2` (bench/final2's Terraform, identical in both builds), `kernel` 6.18 (#14's
+default). Fresh deploy at 20:50 UTC. All five instances were SSM Online by 20:51:15 on the first boot, with no NAT
+replacement (#9). Both NATs ran 6.18.62-127.179, irqbalance inactive, threaded NAPI on every ENI. c7gn.medium first,
+then both NATs resized in place to c7gn.large, the standby first. Builds were switched on the running NATs with
+[build-swap](jobs/build-swap.sh), the standby first. Jobs: [final-rc](jobs/final-rc.sh) and
+[fix-failover](jobs/fix-failover.sh) as in round 1, and [final2-checks](jobs/final2-checks.sh) for the new checks and
+the A/B. `run.sh` gained `PATTERN=step STEP_AT= RATE2=`, which changes a load's rate partway through. Runs:
+[results/final2-9664703](results/final2-9664703). 60 s runs, 3 per cell unless noted, median and range.
+
+## Does the build without #15 flap?
+
+64-byte UDP through the NAT, 3 runs of 60 s at each rate, and one 10-minute run at 1.2M packets a second, per build
+and size. "Failed rounds" are health rounds that count toward stepping down. "In a row" is the longest run of them on
+the serving NAT. Two in a row make the owner step down once the standby confirms the failure. "Path alive" counts
+#15's check finding a congested path, so the round doesn't count. Forwarded is the shared ENI's transmit rate.
+
+| Load | c7gn.medium, final2 (with #15) | c7gn.medium, no15 | c7gn.large, final2 | c7gn.large, no15 |
+| --- | --- | --- | --- | --- |
+| UDP 800k pps, 3 x 60 s | Takeovers 0, 0, 0. Failed rounds 0, 0, 0. Guard engaged once a run. 386k forwarded (384k to 387k), ping loss 77.5% | Takeovers 0, 0, 0. Failed 0, 0, 0. Engaged once a run. 380k (379k to 384k), ping loss 78.9% | Takeovers 0, 0, 0. Failed 0, 0, 0 (path alive 0, 1, 1). Engaged in 1 run. 786k (784k to 786k), ping loss 4.5% | Takeovers 0, 0, 0. Failed 3, 0, 0, **2 in a row** in run 1. Never engaged. 786k, ping loss 2.7% |
+| UDP 1.2M pps, 3 x 60 s | Takeovers 0, 0, 0. Failed 0, 0, 0. Engaged once a run. 417k (415k to 417k), ping loss 49.5% | Takeovers 0, 0, 0. Failed 1, 0, 1, never 2 in a row. Engaged once a run. 395k (348k to 413k), ping loss 56.3% | Takeovers 0, 0, 0. Failed 1, 1, 0, never 2 in a row. Engaged once a run. 789k (761k to 820k), ping loss 58.8% | Takeovers 0, 0, 0. Failed 1, 0, 0. Engaged once a run. 781k (777k to 783k), ping loss 55.6% |
+| UDP 1.2M pps, 10 minutes | **0 takeovers.** 0 failed rounds, 6 path alive. Guard engaged once and held. 337k forwarded, ping loss 93.8% | **1 takeover** 9 min 46 s in. 10 failed rounds, **3 in a row**. Guard engaged twice and cleared twice during the flood. 328k, ping loss 92.7% | **0 takeovers.** 1 failed round, 3 path alive. Engaged once and held. 783k, ping loss 54.4% | **1 takeover** 1 min 52 s in. 8 failed rounds, **3 in a row**. Engaged 3 times, cleared 3 times during the flood. 859k, ping loss 18.1% |
+| TCP as fast as 32 flows go, 1 run | 8.28 Gbps (8.28 to 8.54 over sat's 3 runs), 0 failed | 8.42 Gbps, 1,298 ns a packet (final2: 1,259 to 1,296), 1 failed | 17.70 Gbps, 2 failed in a row once (no step-down: the standby didn't confirm) | 17.74 Gbps, 2 failed, never in a row |
+
+**Verdict: yes, the build without #15 flaps under a sustained flood, so keep #15.** In 10 minutes of 64-byte UDP at
+1.2M packets a second, no15 lost ownership once on each size, and final2 never did. In 60 s runs neither build
+took over, but no15 counted 6 failed rounds over its 12 runs (2 in a row once, on the large at 800k) against 2 for
+final2, which never had 2 in a row in a UDP run.
+
+- **Both no15 takeovers followed the guard clearing in the middle of the flood.** On the medium, 8.5 minutes in, the
+  guard raised its budget 4 times in 4 s and then cleared at a busiest CPU of 0.91. The NIC dropped probe replies at
+  random again, the guard only re-engaged 61 s later and cleared again 9 s after that, and three failed rounds in a
+  row ended the session:
+
+  ```
+  23:20:46-49 overload guard raised its budget (4 times)
+  23:20:50    overload guard cleared              "busiest_cpu":0.912,"dropped":389601733
+  23:21:51    overload guard engaged
+  23:22:00    overload guard cleared              "busiest_cpu":0.929
+  23:22:05-12 health round "healthy":false (4 rounds, 3 counted in a row)
+  23:22:12    ownership session ended             "reason":"stepped down after corroborated path failure"
+  ```
+
+  On the large, the guard cleared 7 s after engaging (00:23:53, `"busiest_cpu":1`), and 3 failed rounds in a row
+  ended the session at 00:24:18. With #15, the same failed probes found the path alive (handshakes partly completed),
+  so they didn't count. The guard's behaviour is the same in both builds (#15 doesn't touch it): on final2's medium
+  run it alternated `raised` and `lowered` every 1 to 2 s from 9 minutes in, without clearing.
+- **#15's limit showed once.** In final2's first full-rate TCP run on the large, two uploads in a row timed out while
+  all 40 handshakes completed, which #15 counts as failed by design. The standby didn't confirm, so the owner kept
+  serving. The same pattern can make a slightly overloaded owner step down.
+- **Forwarding and loss are the same within run-to-run spread.** #15 costs nothing measurable: full-rate TCP on the
+  same hosts was 8.42 against 8.28 to 8.54 Gbps (medium) and 17.74 against 17.61 to 17.70 Gbps (large).
+- **The medium's 1.2M pps runs reach the shared ENI at about 600k** in both builds and both rounds: one generator's
+  iperf3 clients exit early with `unable to read from stream socket: Resource temporarily unavailable`. The
+  10-minute runs and the large aren't affected. Round 1's medium numbers had the same error, so the rounds compare.
+
+Counts come from the NATs' journals ([scripts/failed-rounds.py](scripts/failed-rounds.py), journals in
+[results/final2-9664703/journals](results/final2-9664703/journals)). Each counted failure is logged, and so is the
+next passing round.
+
+## Checks
+
+References: round 1 ([Final release candidate](#final-release-candidate-2026-11-14), c3c3b5a, which had #10 and
+older PR heads). Rows marked "not run (budget)" were cut on the large to keep the session under $4 after the A/B was
+added. Each of them passed on the large in round 1, and nothing they test differs between sizes.
+
+| Check | c7gn.medium | c7gn.large | Verdict |
+| --- | --- | --- | --- |
+| First boot (#9), kernel (#14) | All five SSM Online by 20:51:15 on the first boot. 6.18.62-127.179, binary 2a4aa1eb, `"release":"v0.1.99"`, natpair and conntrackd active, irqbalance inactive | Same kernel after the in-place resize, binary 2a4aa1eb after swapping back from no15 | pass |
+| #14: `terraform plan` with `release = "v0.1.1"` and kernel 6.18 (local, no apply) | Fails with `kernel 6.18 needs a natpair release with threaded NAPI, and v0.1.1 doesn't have it. Set release to a version after v0.1.1, or set kernel = "6.1".` | (same module) | pass |
+| Threaded NAPI on every ENI, also after a takeover (#16) | `threaded` 1 on every ENI. Each new owner logged `turned on threaded receive processing` 4.6 to 7.5 s after `ownership acquired` and before `forwarding open` (3 handovers, the congested handover, the fail-over) | 4.5 to 7.9 s, before `forwarding open` (3 handovers, 2 kills, the fail-over) | pass |
+| #11: delete the owner's route to the peer during 3,000 connections a second | 3 rounds 62 s apart: put back after 4.1, 1.9 and 4.5 s, each with `the route to the peer was missing or wrong and has been restored` (`checks`:1). In the 15 s after each: 94k to 101k copies to port 3780 on ens5, 0 on ens6, 0 fragments on either interface, `FragCreates` 0 | 1 round (budget): 3.6 s, same warning, 190k copies on ens5, 0 on ens6, 0 fragments | pass |
+| #12: fill the connection table at 15,000 connections a second, then SIGKILL the owner's daemon and keep it down | 3 rounds. Table 262,144 of 262,144 about 20 s in. The owner logged `the connection table is full` and `the health probe failed because this NAT's connection table is full`, and kept serving. After the kill, the standby acquired once, opened forwarding 8.8 to 11.7 s later, ended no session, and forwarded 5k to 84k packets a second until the load ended (new connections limited by its own full table) | 2 rounds (budget): same. Acquired with `copied_state_ready` false, forwarding open 8.3 and 11.5 s later, 3k to 107k packets a second after | pass |
+| #17: SIGKILL the daemon while the guard limits under 1.2M pps | 3 rounds and 1 with the off switch created just before the kill. Before: ring 2,048, `napi/ens6` at nice -10, XDP attached. The program and the nice value went at once (ENA restarts the interface when the XDP link closes). systemd restarted the daemon 1.2 to 1.4 s after the kill, and the ring was back at 1,024 by +1.2 to +1.6 s, record removed, in all 4. The off-switch round logged `overload guard switched` (`on`:false) and restored the same way | 2 rounds and the off-switch round (budget): ring 1,024 at +1.5 s in all 3, threads at nice 0 | pass |
+| #17: 1.2M pps until the guard limits, then a steady rate above the cut budget | Step to 458k pps (115% of the 399k calibration, while the runs cut to 351k to 360k): raised 2 to 3 times, but in 2 of 3 runs cleared only when the load ended, shedding 9 to 12% at 80 to 85% CPU for 40 s. A 180 s run held at 433k shedding 7 to 15% until the end. Step to 419k pps (105%): raised and cleared 1 to 2 s after the step in 3 of 3 | Not run: a harness bug (the calibration read the budget from a log line it had cut short), fixed in the job afterwards | partial, see findings |
+| Smoke | 20 s TCP 9.64 Gbps. 20 s churn 3,000/s, p99 3.9 ms, 0 failures | not run (budget, sat and churn cover it) | pass |
+| TCP as fast as 32 flows go | 8.53 Gbps (8.28 to 8.54). Round 1: 8.82. 0 takeovers, 0 lease failures, 0 DNS timeouts, 0 to 3 failed probes, never engaged (NIC drop 2.1%) | 17.69 Gbps (17.61 to 17.70). Round 1: 18.53. 0 takeovers, 0 lease, 0 DNS, 0 to 4 failed probes (2 in a row once, see above), never engaged (NIC drop 1.0%) | pass, 3 to 5% under round 1 on both sizes and the same on no15 on these hosts |
+| TCP with 88-byte segments, 64 flows | 890k pps (876k to 891k). Round 1: 928k. 0 takeovers, never engaged | 1.936M pps (1.919M to 1.939M). Round 1: 1.98M. 0 takeovers, never engaged | pass |
+| UDP 64 B at 800k and 1.2M pps | See the A/B table: 0 takeovers in 6 runs, 0 failed rounds | 0 takeovers in 6 runs, never 2 failed rounds in a row | pass |
+| Ring, nice and program after the guard clears | After all 7 engaged runs (UDP and the congested handover): ring 1,024, `napi/ens6` at nice 0, no XDP program | After all 6: same | pass |
+| 3,000 connections a second | 3 x 60 s: 0 failures, p99 per generator 4.3 to 7.1 ms. Round 1: 5.1 | 1 x 60 s (budget): 0 failures, p99 12.6 and 19.6 ms. Round 1: 9.9 (7.3 to 21.1) | pass |
+| 120 s churn with a forced full copy 60 s in | Table 97.6k before, 99.5k after, p99 4.7 and 5.6 ms, 0 failures, no step-down | 99.9k before, 101.9k after, p99 23.8 and 29.2 ms, 0 failures, no step-down | pass |
+| 1M pps UDP flood of the owner's own address, TCP at 4.5 Gbps | 3.65 to 4.47 Gbps. 1 to 8 lease failures a run, and 2 of 3 runs lost the lease (`lease lost: another owner took the lease while the store was unavailable`), as in round 1 | not run (budget) | medium: known limit, unchanged |
+| SYN probes from the receiver to the shared and both own addresses, 8 ports, 3 rounds | No answer anywhere | not run (budget) | pass |
+| ACK probes, same addresses and ports | Own addresses: no answer. Shared: a reset on 8080, 40000 and 50000 only | not run (budget) | pass |
+| 200 ACKs at 2,000/s to the shared address's port 40000, then 50/s for 10 s, 3 rounds | 51 resets in the burst, then 14 and 10 a second | not run (budget) | pass |
+| Planned handover at 2 Gbps, 3 rounds | 1 takeover each, ping gap 8.8 s (8.3 to 10.5), 0 lease failures, 1 to 2 DNS timeouts | 1 each, ping gap 7.3 s (7.0 to 10.7), 0 lease, 1 to 2 DNS | pass |
+| Congested-owner handover, `natpair maintenance` 20 s into 1.2M pps | Completed, 1 takeover, ping gap 8.9 s. The new owner turned on threaded NAPI, watched ens6, attached and engaged (22:12:38.1) while its fence was still closed, then opened forwarding (22:12:39.2). The old owner logged `overload guard stopped watching` | not run (as in round 1) | pass |
+| Blackhole fail-over at 2 Gbps (fix-failover) | Blackhole 22:23:56, `stepped down after corroborated path failure` 22:24:01, forwarding open on the standby 22:24:08, ping gap 12.4 s | Blackhole 01:51:46, stepped down 01:51:52, forwarding open 01:52:00, ping gap 13.5 s | pass |
+| CPU per forwarded packet below saturation, 45 s | TCP at 4 Gbps: 1,353 ns (1,312 to 1,432). Round 1: 1,218. UDP at 300k pps: 2,159 (2,154 to 2,164). Round 1: 2,034. Never engaged | not run (budget) | pass with a note: 6 to 11% over round 1, but not from #15 (full-rate TCP cost the same per packet on no15) |
+
+## Findings
+
+- **#17: the guard can clear while a flood still fills the NIC (bug).** Its clear rule takes the program off once it
+  drops under 5% for a second, unless the busiest CPU is still full, and the raise rule lifts the budget 10% a
+  second while the CPU is under 85%. Under a sustained 1.2M pps flood the raises pushed the budget up until the
+  program barely dropped, and it cleared at 91 to 100% CPU (excerpt above). Off again, the NIC dropped probe replies
+  at random, and on the medium the guard only re-engaged 61 s later, since engaging needs the CPU at 95% for 300 ms
+  and the CPU sat at 91 to 93% with the NIC shedding the rest. That cost no15 a takeover on each size. final2 rode it
+  out only because #15 counted those rounds as congested. A tighter rule would keep the program on, or re-engage it,
+  while the NIC itself drops at least 5%, whatever the CPU reads.
+- **#17: steady traffic between about 85% and 95% CPU stays shed after a flood (limit).** After a flood, the guard
+  raises its budget only while the busiest CPU is under 85%. A steady 458k pps on the medium (after a cut budget of 351k
+  to 360k) put the CPU at 80 to 85% on the raised budget, so the guard raised twice and then held, dropping 7 to 15%
+  of traffic the CPU could carry, for as long as it lasted (3 minutes in the long run, ended by the load). Without a
+  flood first, the same rate would never engage it (that needs 95% CPU). A steady 419k pps cleared within 2 s.
+  Same fix direction as above: decide on the NIC's own drops rather than the CPU alone.
+- **#15 counts a timed-out upload with all 40 handshakes completing as a failure.** It did so twice in a row once on
+  the large during full-rate TCP. Documented in #15, and harmless here because the standby didn't confirm.
+- **No bug in #11, #12, #14 or #16.** The merges behaved like the PR benches: every takeover a run's journal caught to the
+  end (10 on the medium, 6 on the large, kills included) ran #16's threaded NAPI step and then #17's guard step
+  before forwarding opened. The crash rounds' takeovers finished after their runs' journals ended.
+- **Bench notes, all mine, none in natpair.** The receiver and generators auto-stopped 4 hours after boot
+  (`auto_stop_minutes`) at about 00:50 and killed the large sat job, so it ran again from 01:08. The resize to
+  c7gn.large lost about 30 minutes: my script ran `natpair resume` only after its readiness check, and a NAT in
+  maintenance never reports ready (the flag survives the restart). The stack sat idle from 02:06 to 02:24 after the
+  last job, about $0.23.
+
+**Conflicts while merging, in merge order** (the PRs will hit the same ones when they land in this order):
+
+- #11: none.
+- #12: both #11 and #12 add functions at the same spot in `internal/network/network.go`, `export_test.go` and
+  `network_linux_test.go`. Keep both.
+- #15: none (it contains #12).
+- #16: CHANGELOG, and `cmd/natpair/nat.go`, where #11's peer route check and #16's threaded NAPI check each add a
+  goroutine at the same spot. Keep both goroutines. #16's changelog entry goes last under Fixed, before #12's Security
+  section.
+- #14: none.
+- #17: CHANGELOG, `nat.go`, `docs/architecture.md`, `docs/operations.md`, `internal/network/network_test.go`,
+  `test.Dockerfile`, and `internal/probe/probe.go`. Keep both sides in the docs. In `nat.go`, `ActivateShared` turns
+  on threaded NAPI, returns if that fails, then calls `guard.Ensure`, since the guard renices the threads threaded
+  NAPI creates. The guard gets its own goroutine. In `probe.go`, #15's private `receiverPort` and #17's exported
+  `Port` are the same function, so `Port` stays and #15's callers use it. In the SNAT test, #17's shared-canary rule
+  (ports 61000 to 65535) comes first, then #12's worker port rules. The Dockerfile takes #17's package list (it adds
+  iputils). Changelog sections in Keep a Changelog order: Added, Changed, Fixed, Security. Round 1's extra test fix
+  for `localSteps` without a guard is no longer needed: #17's 978f1d4 makes `Ensure` on a nil guard do nothing.
+- Without #15 (bench/final2-no15): the same, minus `probe.go`.
+
+Cost of this deploy: 20:49 to 02:27 UTC, 5.6 h, about $3.92: medium phase 2.67 h, about 1.76. Resize 0.65 h, 0.47. Large
+2.0 h, 1.58, of which 0.3 h with the generators and receiver stopped. S3, DynamoDB and Lambda 0.03.
+
+## Status
+
+Destroyed on 2026-11-16 at 02:26 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
+tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
+volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final2` with `kernel = var.nat_kernel`.

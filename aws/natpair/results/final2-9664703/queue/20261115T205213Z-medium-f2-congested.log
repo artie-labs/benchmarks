@@ -1,0 +1,38 @@
+=== congested 22:11:38
+standby i-09a9e7ec1c6c33b1a ready
+run 20261115T221144Z-c7gn.medium-final2-congested-handover: owner i-0fe5119a863bc4d64, standby i-09a9e7ec1c6c33b1a, load at 2026-11-15T22:12:09Z
+Maintenance requested. An active NAT hands over once its peer passes its checks, or, while its path is congested, once the peer has proven its own path. Check that the peer serves and traffic works through it before replacing this NAT.
+	
+uploaded gen i-0a41e215a83928ecf
+	
+uploaded gen i-0458c40087f21c85c
+	
+uploaded nat i-0fe5119a863bc4d64
+	
+uploaded nat i-09a9e7ec1c6c33b1a
+	
+Maintenance cleared. This NAT becomes an eligible standby once its checks pass.
+	
+20261115T221144Z-c7gn.medium-final2-congested-handover | ens5 rx 14 pps 0.00 Gbps tx 19 pps 0.00 Gbps  | ens6 (shared) rx 880487 pps 0.75 Gbps tx 360479 pps 0.31 Gbps  | busy 0.38 cores soft 0.00 | 433 ns/pkt | iperf 0.17 Gbps retr 0 | ERRORS ['iperf-steady-5201.json: unable to read from stream socket: Resource temporarily unavailable'] | sources_ok=True
+owner before i-0fe5119a863bc4d64, after i-09a9e7ec1c6c33b1a
+== i-09a9e7ec1c6c33b1a
+{"time":"2026-11-15T22:12:30.878193595Z","level":"INFO","msg":"ownership acquired","epoch":14,"copied_state_ready":true,"path_proven":true}
+{"time":"2026-11-15T22:12:36.802342353Z","level":"INFO","msg":"turned on threaded receive processing","interfaces":1}
+{"time":"2026-11-15T22:12:36.802746532Z","level":"INFO","msg":"overload guard watching","interface":"ens6"}
+{"time":"2026-11-15T22:12:37.919287846Z","level":"INFO","msg":"overload guard attached","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.059,"rx_ring":2048,"duration":35413323}
+{"time":"2026-11-15T22:12:38.12450769Z","level":"WARN","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.059,"measured_pps_per_cpu":507051,"budget_pps_per_cpu":45585
+{"time":"2026-11-15T22:12:39.120123601Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.17,"budget_pps_per_cpu":410079}
+{"time":"2026-11-15T22:12:39.237407185Z","level":"INFO","msg":"forwarding open","takeover":8359190928}
+{"time":"2026-11-15T22:13:09.220231905Z","level":"INFO","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","interface":"ens6","busiest_cpu":0.814,"shed_share":0.562,"budget_pps_per_cpu":451087}
+{"time":"2026-11-15T22:13:10.01958366Z","level":"INFO","msg":"overload guard cleared","interface":"ens6","busiest_cpu":0.067,"dropped":15208826}
+	
+== i-0fe5119a863bc4d64
+{"time":"2026-11-15T22:12:09.626587003Z","level":"INFO","msg":"overload guard attached","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.431,"rx_ring":2048,"duration":44635523}
+{"time":"2026-11-15T22:12:09.834882989Z","level":"WARN","msg":"overload guard engaged: the CPU can't forward everything the shared ENI receives, so it drops worker packets past a budget","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.431,"measured_pps_per_cpu":494826,"budget_pps_per_cpu":4444
+{"time":"2026-11-15T22:12:10.833985035Z","level":"INFO","msg":"overload guard lowered its budget, because the NIC still drops packets","interface":"ens6","busiest_cpu":1,"nic_drop_share":0.133,"budget_pps_per_cpu":399589}
+{"time":"2026-11-15T22:12:30.73381655Z","level":"WARN","msg":"ownership session ended","reason":"maintenance requested"}
+{"time":"2026-11-15T22:12:31.328126702Z","level":"INFO","msg":"overload guard raised its budget, because the CPU has room and it still drops packets","interface":"ens6","busiest_cpu":0.833,"shed_share":0.563,"budget_pps_per_cpu":438690}
+{"time":"2026-11-15T22:12:31.829595676Z","level":"INFO","msg":"overload guard stopped watching","interface":"ens6"}
+	
+=== done 22:14:00
+2026-11-15T22:14:00Z END 20261115T205213Z-medium-f2-congested.sh rc=0
