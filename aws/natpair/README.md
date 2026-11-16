@@ -195,6 +195,13 @@ interrupt and `napi/` receive thread ran, once a second (`placement` in the summ
 [box/irqwatch.sh](box/irqwatch.sh) records the same between runs. [scripts/irq-table.py](scripts/irq-table.py) prints
 one line per run.
 
+The A/B of #15 on c7gn.large NATs without the guard (natpair now requires 2 or more vCPUs) uses
+[noguard](jobs/noguard.sh) (prepend `BUILD=` and `CASES=`), with c7gn.xlarge generators (`generator_instance_type`).
+Past what a NAT forwards, an iperf3 client's setup through it fails for some clients, so they offer less than asked.
+`run.sh MODE=raw` sends UDP from each generator with [flood](flood) instead, over `PROCS` x `STREAMS` fixed flows at
+`RATE` packets a second per generator, with no setup through the NAT. iperf3 clients that fail before sending start
+again for the time left.
+
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:
 

@@ -2,7 +2,12 @@
 // random destination ports, through a raw socket. The bench uses it to load a NAT's own address from outside the
 // VPC while the NAT forwards worker traffic. It needs root.
 //
+// With -flows N it sends UDP over N fixed port pairs instead, so a generator can push small packets through a NAT
+// as N long-lived flows. Unlike iperf3, it needs no setup exchange through the NAT, which fails once the NAT is past
+// what it forwards.
+//
 // flood -target 10.40.0.116 -mode syn -pps 1000000 -duration 60s -workers 4 -out flood.json
+// flood -target 10.50.0.65 -mode udp -flows 64 -size 92 -pps 2000000 -duration 60s -out flood.json
 package main
 
 import (
@@ -21,9 +26,8 @@ import (
 )
 
 const (
-	ringSize   = 8192
-	packetSize = 64
-	batch      = 256
+	ringSize = 8192
+	batch    = 256
 )
 
 func main() {
@@ -33,11 +37,14 @@ func main() {
 	duration := flag.Duration("duration", 60*time.Second, "how long to send")
 	workers := flag.Int("workers", runtime.NumCPU(), "sending threads")
 	out := flag.String("out", "-", "JSON summary file, - for stdout")
+	flows := flag.Int("flows", 0, "UDP only: send over this many fixed port pairs. 0: a random pair per packet")
+	size := flag.Int("size", 64, "IPv4 packet size in bytes, from 40 to 1500")
 	flag.Parse()
 
 	dst := net.ParseIP(*target).To4()
-	if dst == nil || (*mode != "udp" && *mode != "syn") || *pps <= 0 || *workers <= 0 {
-		fmt.Fprintln(os.Stderr, "flood: need -target IPv4, -mode udp|syn, -pps > 0, -workers > 0")
+	if dst == nil || (*mode != "udp" && *mode != "syn") || *pps <= 0 || *workers <= 0 || *flows < 0 ||
+		(*flows > 0 && *mode != "udp") || *flows > ringSize || *size < 40 || *size > 1500 {
+		fmt.Fprintln(os.Stderr, "flood: need -target IPv4, -mode udp|syn, -pps > 0, -workers > 0, -size 40 to 1500, and -flows 0 to 8192 (udp only)")
 		os.Exit(2)
 	}
 	src, err := sourceFor(dst)
@@ -45,7 +52,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "flood:", err)
 		os.Exit(1)
 	}
-	ring := buildRing(*mode, src, dst)
+	ring := buildRing(*mode, src, dst, *flows, *size)
 	addr := &syscall.SockaddrInet4{}
 	copy(addr.Addr[:], dst)
 
@@ -93,6 +100,7 @@ func main() {
 	seconds := time.Since(start).Seconds()
 	summary := map[string]any{
 		"mode": *mode, "target": *target, "source": src.String(), "pps_target": *pps, "workers": *workers,
+		"flows": *flows, "size": *size,
 		"seconds": seconds, "sent": sent.Load(), "failed": failed.Load(), "sent_pps": float64(sent.Load()) / seconds,
 	}
 	f := os.Stdout
@@ -116,19 +124,30 @@ func sourceFor(dst net.IP) (net.IP, error) {
 	return c.LocalAddr().(*net.UDPAddr).IP.To4(), nil
 }
 
-// buildRing returns ringSize 64-byte IPv4 packets with random source and destination ports. The kernel fills in
-// the IP header checksum and total length.
-func buildRing(mode string, src, dst net.IP) [][]byte {
+// buildRing returns ringSize IPv4 packets of size bytes with random source and destination ports, or with flows > 0,
+// packet i on the i % flows'th of flows fixed port pairs. The kernel fills in the IP header checksum and total
+// length.
+func buildRing(mode string, src, dst net.IP, flows, size int) [][]byte {
 	ring := make([][]byte, ringSize)
+	pairs := make([][2]uint16, flows)
+	for f := range pairs {
+		// Distinct source ports, so the flows spread over the NAT's receive queues. Port 9 is discard.
+		pairs[f] = [2]uint16{uint16(20000 + f), 9}
+	}
 	for i := range ring {
-		p := make([]byte, packetSize)
+		p := make([]byte, size)
 		p[0], p[8] = 0x45, 64
-		binary.BigEndian.PutUint16(p[2:], packetSize)
+		binary.BigEndian.PutUint16(p[2:], uint16(size))
 		copy(p[12:], src)
 		copy(p[16:], dst)
 		l4 := p[20:]
-		binary.BigEndian.PutUint16(l4[0:], uint16(1024+rand.IntN(64000)))
-		binary.BigEndian.PutUint16(l4[2:], uint16(1+rand.IntN(65535)))
+		if flows > 0 {
+			binary.BigEndian.PutUint16(l4[0:], pairs[i%flows][0])
+			binary.BigEndian.PutUint16(l4[2:], pairs[i%flows][1])
+		} else {
+			binary.BigEndian.PutUint16(l4[0:], uint16(1024+rand.IntN(64000)))
+			binary.BigEndian.PutUint16(l4[2:], uint16(1+rand.IntN(65535)))
+		}
 		if mode == "udp" {
 			p[9] = syscall.IPPROTO_UDP
 			binary.BigEndian.PutUint16(l4[4:], uint16(len(l4)))

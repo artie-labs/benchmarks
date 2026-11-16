@@ -62,6 +62,9 @@ fi
 if [[ $role == gen && $MODE == churn ]]; then
   aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/churn" "$base/churn" && chmod +x "$base/churn"
 fi
+if [[ $role == gen && $MODE == raw ]]; then
+  aws s3 cp --only-show-errors "s3://$BUCKET/box/bin/flood" "$base/flood" && chmod +x "$base/flood"
+fi
 
 sleep_until "$START"
 "$base/enapoll" -i auto -interval "$INTERVAL" -duration "${SAMPLE_SECONDS}s" -out enapoll.csv \
@@ -120,10 +123,16 @@ if [[ $role == nat ]]; then
   ) > limits.txt &
 fi
 
-# One iperf3 client process per receiver port, PROCS per generator, each with STREAMS flows.
+# One iperf3 client process per receiver port, PROCS per generator, each with STREAMS flows. MODE=raw sends 64-byte
+# (LEN) UDP payloads over PROCS x STREAMS fixed flows with flood instead, RATE packets a second from this generator.
 run_clients() {
   local seconds=$1 tag=$2 port args=() pids=()
-  args=(-t "$seconds" -P "$STREAMS" -J)
+  if [[ $MODE == raw ]]; then
+    "$base/flood" -target "$RECEIVER_IP" -mode udp -flows "$((PROCS * STREAMS))" -size "$((${LEN:-64} + 28))" \
+      -pps "$RATE" -duration "${seconds}s" -out "flood-$tag.json" 2> "flood-$tag.err"
+    return
+  fi
+  args=(-P "$STREAMS" -J)
   [[ $MODE == down || $MODE == udpdown ]] && args+=(-R)
   [[ -n $MSS ]] && args+=(--set-mss "$MSS")
   if [[ $MODE == udp || $MODE == udpdown ]]; then
@@ -134,10 +143,30 @@ run_clients() {
   fi
   for ((j = 0; j < PROCS; j++)); do
     port=$((5201 + GEN_INDEX * PROCS + j))
-    iperf3 -c "$RECEIVER_IP" -p "$port" "${args[@]}" > "iperf-$tag-$port.json" 2>&1 &
+    client_with_retry "$seconds" "$port" "iperf-$tag-$port.json" "${args[@]}" &
     pids+=($!)
   done
   wait "${pids[@]}"
+}
+
+# client_with_retry <seconds> <port> <output> <iperf3 args...>: once the first clients fill a NAT past what it
+# forwards, a later client's setup through it can fail (`unable to read from stream socket`), and the load would be
+# smaller than asked. A client that fails before sending anything starts again for the time left, while 10 s or more
+# remain. Retries go to iperf-retries-<port>.txt.
+client_with_retry() {
+  local seconds=$1 port=$2 out=$3 end left
+  shift 3
+  end=$(($(date +%s) + seconds))
+  while true; do
+    left=$((end - $(date +%s)))
+    iperf3 -c "$RECEIVER_IP" -p "$port" "$@" -t "$left" > "$out" 2>&1
+    if grep -q '"error"' "$out" && grep -Eq '"intervals":[[:space:]]*\[\]' "$out" && ((end - $(date +%s) >= 10)); then
+      echo "$(date -u +%T) retry after: $(grep -o '"error":[^}]*' "$out" | head -1)" >> "iperf-retries-$port.txt"
+      sleep 0.5
+      continue
+    fi
+    return 0
+  done
 }
 
 # Fairness: one heavy worker and four light ones, each from its own address. Generator 0 runs the heavy worker

@@ -6,6 +6,8 @@
 #
 #   MODE=up|down|udp|udpdown|none  up: generators send to the receiver. down: the receiver sends (iperf3 -R).
 #                          udp and udpdown: the same with UDP, only to find packet-rate limits. none: no load.
+#                          raw: UDP from each generator with flood over PROCS x STREAMS fixed flows, RATE packets a
+#                          second per generator, with no setup through the NAT (iperf3's fails past what it forwards).
 #   PROCS=2 STREAMS=8      iperf3 client processes per generator, and flows per process
 #   RATE=                  iperf3 -b per flow, such as 50M. Empty: unlimited
 #   MSS= LEN=              TCP --set-mss, and the UDP payload length
