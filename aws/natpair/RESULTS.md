@@ -1224,3 +1224,99 @@ Destroyed on 2026-11-16 at 02:26 UTC and verified empty with direct describe cal
 instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final2` with `kernel = var.nat_kernel`.
+
+# Final release candidate (round 3, 2026-11-16)
+
+Build 8221edc from natpair's bench/final3 branch: round 2's bench/final2 (9664703) with #17 moved to its new head
+96627eb. #17's commits since round 2's 6fb518c are applied as the merge of 96627eb: 1d8d07a (the guard decides on the
+NIC's own drops: it clears only once the NIC dropped under 5% over the last 1.5 s, cuts at 85% busy, raises only while
+the NIC keeps up and not for 30 s after a cut, and for a minute after clearing engages again at 85% busy), fe8b599 (NIC
+drops count as unknown after a counter reset) and 96627eb (a comment). #17's own merge of master brings #11 as the
+squashed 3c89445, whose tree matches fd4a561, already merged. Built like round 2 (goreleaser with the repository's
+config, Go 1.26.0), tagged v0.1.99, tarball sha256 1b046728c8261ee7967103e1361711312bcaa8914fce107c6242088e0a53ec5f,
+binary 46db580a. Without #15: bench/final3-no15 62f647b (round 2's final2-no15 21d74a8 plus the same commits), tarball
+sha256 d77bbed0846e88133902d0e84321afc422c0f19a106ab9762068a68ce46feb02, binary e9e034c3. Before AWS, on both: `go
+vet` (darwin, linux, linux with the test tags), `go test -race ./...`, golangci-lint v2.13.2 (CI's pin) with and
+without the test tags, and `make test-privileged`. The fault campaign wasn't rerun.
+
+Module from `natpair.worktrees/final3`, `kernel` 6.18 (6.18.62-127.179). Fresh deploy at 04:24 UTC, all five instances
+SSM Online on the first boot by 04:27. c7gn.medium, then both NATs resized in place to c7gn.large, the standby first
+(05:30 to 05:33). Builds switched on the running NATs with [build-swap](jobs/build-swap.sh). Jobs: the `udp` section of
+[final-rc](jobs/final-rc.sh) and the `budget`, `sustained` and `tcp1` sections of
+[final2-checks](jobs/final2-checks.sh), whose `budget` gained `STEP_PPS` (a step to a fixed rate). Run summaries and
+journals stay out of the repository this round. Rates below are per-second averages from the NATs' ENA counters, since
+a run's `steady` figure came out wrong for the step runs.
+
+## The guard on final3
+
+64-byte UDP through the NAT. "Counted" is health rounds that count toward stepping down, "in a row" the longest run of
+them, and "path alive" #15's check finding a congested path. Busiest CPU and NIC drops are whole-run figures on the
+owner (NIC drops: `rx_over_errors` over packets received on the shared ENI). Forwarded is the shared ENI's transmit rate.
+
+| Load | c7gn.medium | c7gn.large |
+| --- | --- | --- |
+| UDP 800k pps, 3 x 60 s | Takeovers 0, 0, 0. Counted 1, 0, 0, never 2 in a row. Engaged once a run and held until the load ended. Busiest CPU 93 to 96%, NIC drops 0.4 to 0.8%. 401k to 403k forwarded (run 1 reached only 595k). Ping loss 54 to 76% | Takeovers 0, 0, 0. Counted 0, 0, 0. Never engaged. Busiest 81 to 82%, NIC drops 1.2 to 1.4%. 789k to 790k forwarded, everything that arrived. Ping loss 0.9 to 1.8% |
+| UDP 1.2M pps, 3 x 60 s | Takeovers 0, 0, 0. Counted 0, 0, 0 (path alive once a run). Engaged once a run and held. Busiest 95 to 97%, NIC drops 1.4 to 2.3%. 351k to 393k forwarded of 883k to 1.17M. Ping loss 78 to 87% | Takeovers 0, 0, 0. Counted 0, 0, 0. Engaged once a run. Runs 1 and 2: held until the load ended, 807k and 834k forwarded of 1.19M, ping loss 52 and 70%. Run 3 reached only 880k (a generator's iperf3 failed at start): engaged for 4 s at a 6% NIC drop, raised 3 times and cleared, 871k forwarded |
+| 1.2M pps until the guard limits, then a lower steady rate for 180 s | 420k (arrived as 407k): cleared 9 s after the step, once the 30 s hold after its last cut ended (2 raises). 99.6% forwarded over the step. One more engagement 68 s after it cleared, at 97% busy and 20% NIC drops, cleared 2.4 s later after 2 raises (85k dropped). 460k (arrived as 443k): cleared 1 s after the step, then engaged 10 more times for 1 to 4 s each, each cleared right after a raise (see findings). 70k to 280k dropped each, 1.3M in all, 98.3% forwarded, busiest 91%. 0 takeovers, 0 counted in both. Round 2: 458k held 7 to 15% dropped for 3 minutes | 780k (arrived as 771k): cleared 1 s after the step, 100% forwarded. 840k (828k): cleared 9 s after the step, once the 30 s hold ended (1 raise), 99.8% forwarded. Neither engaged again. 0 takeovers, 0 counted. The large's cut budget (2 queues x 402k to 445k) sits above the roughly 830k its CPUs carry, so these steps are at or under it. Steps at 117% and 128% of the cut budget arrived as about 1.02M, more than the CPUs carry (84 and 87% forwarded): at 128% the guard held all 180 s, at 117% it cleared twice right after a raise and engaged again about 1 s later |
+| UDP 1.2M pps, 10 minutes | **0 takeovers, 0 counted** (22 failed rounds, all found congested, 7 path-alive checks). Engaged once and held to the end, with 16 raise-then-cut pairs (a raise 30 s after each cut, cut again a second later). Busiest 91%, NIC drops 2.6%. 368k forwarded of 867k. Ping loss 83% | **0 takeovers.** 3 counted, never 2 in a row (2 path-alive checks). Engaged once and held to the end, with 10 raises and 9 cuts. Busiest 89%, NIC drops 3.9%. 816k forwarded of 1.15M. Ping loss 28% |
+
+## Does the build without #15 flap now?
+
+One 10-minute run of 64-byte UDP at 1.2M packets a second per build and size, and one 60 s TCP run.
+
+| Run | c7gn.medium, final3 | c7gn.medium, no15 | c7gn.large, final3 | c7gn.large, no15 |
+| --- | --- | --- | --- | --- |
+| UDP 1.2M pps, 10 minutes | 0 takeovers. 0 counted, 0 in a row. Engaged once, held, cleared after the load. 368k forwarded, ping loss 83% | 0 takeovers. **32 counted, 2 in a row 4 times** (the standby never confirmed). Engaged once, held, cleared after the load. 343k forwarded of 1.15M, ping loss 90% | 0 takeovers. 3 counted, never 2 in a row. Engaged once, held, cleared after the load. 816k forwarded of 1.15M, ping loss 28% | 0 takeovers. 5 counted, never 2 in a row. Engaged 3 times: cleared twice in the flood (4 and 5 min in), each within a second of a raise at a busiest CPU of 1, and engaged again 1.2 s later each time. 731k forwarded of 1.15M (about 490k for the last 100 s, see findings), ping loss 49% |
+| TCP as fast as 32 flows go, 60 s | 8.58 Gbps, 0 counted, never engaged | 8.66 Gbps, 1 counted, never engaged | 17.99 Gbps, 1 counted, never engaged | 17.82 Gbps, 1 counted, never engaged |
+
+**Verdict: the build without #15 no longer takes over, but keep #15.** With #17's fix, no15 rode out the 10-minute
+flood on both sizes with 0 takeovers. In round 2 it took over once on each size, both times right after the guard
+cleared mid-flood and stayed off for up to 61 s. On the medium, no15 still counted 32 failed rounds with 2 in a row 4
+times. Each time, only the standby's refusal to confirm kept the owner from stepping down. final3 counted none in the
+same run, since #15 found the path congested. On the large the two builds are close (5 counted against 3, never 2 in
+a row). TCP is the same within run-to-run spread on both sizes (round 2: 8.28 to 8.54 and 17.61 to 17.70 Gbps).
+
+## Findings
+
+- **#17's fix works.** On final3 the guard held through every 10-minute flood: one engagement per size, cleared only
+  after the load ended, with 0 counted rounds on the medium and 3 (never 2 in a row) on the large. After a flood,
+  steady traffic the CPU carries went back to full forwarding within 1 to 9 s of the step on both sizes. In round 2 a
+  steady 458k pps on the medium stayed 7 to 15% dropped for 3 minutes.
+- **#17: a raise can clear the guard before the NIC shows the overflow it causes (bug, minor).** The clear rule reads
+  the program's shed share over the last second and the NIC's drops over the last 1.5 s. ENA refreshes
+  `rx_over_errors` only once a second. When a raise lifts the budget above what arrives under a load the CPU can't
+  carry, the shed share falls under 5%. The guard then clears 0.2 to 1.6 s after the raise, at a busiest CPU of 0.93
+  to 1, before the new overflow is counted. It engages again 1 to 2 s later through the 1-minute 85% rule (5 to 60 s
+  on the medium at 443k). This happened twice in the large no15 flood, twice in the large 117% step and at all 10 of
+  the medium's re-engagements at 443k. Each cycle detaches and re-attaches the program (ENA restarts the interface each
+  time), lets the NIC drop at random for about a second, and costs about 100k packets a second for 1 to 2 s. No
+  takeover or counted round came from it here. Large, 117% step:
+
+  ```
+  06:05:18.2  overload guard raised its budget   "busiest_cpu":0.949,"shed_share":0.132,"budget_pps_per_cpu":531196
+  06:05:18.9  overload guard cleared             "busiest_cpu":1,"dropped":26275410
+  06:05:20.2  overload guard engaged             "busiest_cpu":1,"nic_drop_share":0.083
+  ```
+
+  A fix would hold off clearing until a full NIC window (1.5 s) has passed since the last raise.
+- **Unexplained: the last 100 s of the large no15 flood.** At 8 min 19 s the shared ENI's arrivals fell from 1.19M to
+  about 950k a second and forwarding from about 780k to 490k, with both CPUs only 65 to 70% busy. The guard held its
+  budget (432k a CPU) with no raise, cut or clear until the load ended, and 4 of the run's 5 counted rounds fell in
+  this stretch. The bench records no per-queue counters, so it can't show whether the remaining flows sat on one
+  receive queue. final3's runs didn't show it.
+- **Generators.** One iperf3 process still fails at the start of some runs with `unable to read from stream socket:
+  Resource temporarily unavailable` (medium 800k run 1 reached 595k, large 1.2M run 3 reached 880k). The other
+  medium 1.2M runs reached 883k to 1.17M, more than round 2's 600k.
+- **Bench notes, mine.** The queue sat idle from 06:37 to 06:53 after the last job because my wait loop missed the end,
+  about $0.21. The large steps at 117% and 128% of the cut budget overshot what the large carries, so 780k and 840k
+  were added.
+
+## Cost and status
+
+Deploy 04:24 to destroy 06:54 UTC, 2.5 h, about $1.84: medium 1.1 h, about 0.73. Large 1.4 h, 1.09, of which 0.27 h
+idle after the last job. S3, DynamoDB and Lambda 0.02. The in-place resize took 3 minutes.
+
+Destroyed on 2026-11-16 at 06:54 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
+tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
+volume and network interfaces remain. `tf/natpair.tf` points at `natpair.worktrees/final3`.

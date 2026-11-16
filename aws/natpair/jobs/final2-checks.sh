@@ -13,7 +13,8 @@
 #              ring and the threads back. 3 rounds, then 1 with the off switch created just before the kill
 #   budget     #17. A 30 s flood at 1.2M packets a second measures the cut budget. Then 3 runs of 25 s at 1.2M
 #              followed by 45 s at 15% above that budget: the guard must raise its budget and clear. STEP_PCT (115),
-#              STEP_LEN (45 s), RUNS (3) and TAG change the step's rate, length, the number of runs and the names
+#              STEP_LEN (45 s), RUNS (3) and TAG change the step's rate, length, the number of runs and the names.
+#              STEP_PPS sets the step's rate in packets a second instead, and the calibration is then only recorded
 #   sustained  The #15 A/B: one 10-minute run of 64-byte UDP at 1.2M packets a second (with jobs/final-rc.sh's udp
 #              section for the 60 s runs at 800k and 1.2M)
 #   tcp1       The #15 A/B: one 60 s run of TCP as fast as 32 flows go
@@ -193,7 +194,7 @@ guard_log() {
 budget() {
   wait_standby_ready || exit 1
   local pct=${STEP_PCT:-115} len=${STEP_LEN:-45} runs=${RUNS:-3} tag=${TAG:-budget}
-  local owner since out="$RESULTS/$t-$BUILD-$tag.txt" cut queues total rate2 k
+  local owner since out="$RESULTS/$t-$BUILD-$tag.txt" cut queues step rate2 k
   owner=$(owner_nat)
   since=$(date -u '+%F %T')
   ./run.sh "$t-$BUILD-$tag-cal" MODE=udp LEN=64 PROCS=2 STREAMS=16 RATE=9.6M DURATION=30 PING=1 > /tmp/budget-run.log 2>&1
@@ -203,16 +204,19 @@ budget() {
     # The last budget the flood left, per CPU, and how many receive queues the shared ENI spreads it over.
     cut=$(grep -E 'lowered|engaged' /tmp/budget-cal.txt | grep -o '"budget_pps_per_cpu":[0-9]*' | tail -1 | cut -d: -f2)
     queues=$(on "$owner" 30 "ls -d /sys/class/net/\$(ip -o -4 addr show | awk '\$4 ~ /^$(shared_private_ip)\\// {print \$2}')/queues/rx-* | wc -l")
-    if [[ -z $cut || -z $queues ]]; then
+    queues=${queues//[^0-9]/}
+    if [[ -n ${STEP_PPS:-} ]]; then
+      step=$STEP_PPS
+    elif [[ -z $cut || -z $queues ]]; then
       echo "no budget from the calibration run"
       cat "$out"
       exit 1
+    else
+      step=$((cut * queues * pct / 100))
     fi
-    queues=${queues//[^0-9]/}
-    total=$((cut * queues))
-    # pct% of the cut budget, over 64 flows of 64-byte datagrams (512 bits each).
-    rate2=$((total * pct / 100 * 512 / 64))
-    echo "cut budget $cut per CPU x $queues queues = $total pps; step to $((total * pct / 100)) pps for $len s (RATE2=$rate2 bits a flow)"
+    # The step's rate over 64 flows of 64-byte datagrams (512 bits each).
+    rate2=$((step * 512 / 64))
+    echo "cut budget ${cut:-unknown} per CPU x $queues queues = $((${cut:-0} * queues)) pps; step to $step pps for $len s (RATE2=$rate2 bits a flow)"
   } > "$out" 2>&1
   for ((k = 1; k <= runs; k++)); do
     wait_standby_ready || exit 1
