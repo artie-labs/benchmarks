@@ -52,7 +52,7 @@ stack when done.
 
 ```sh
 cp tf/terraform.tfvars.example tf/terraform.tfvars   # set aws_profile
-./scripts/build.sh                                   # builds enapoll, churn, flood and the XDP test programs
+./scripts/build.sh                                   # builds enapoll, churn, flood, hold and the XDP test programs
 terraform -chdir=tf init
 terraform -chdir=tf apply
 ```
@@ -201,6 +201,14 @@ Past what a NAT forwards, an iperf3 client's setup through it fails for some cli
 `run.sh MODE=raw` sends UDP from each generator with [flood](flood) instead, over `PROCS` x `STREAMS` fixed flows at
 `RATE` packets a second per generator, with no setup through the NAT. iperf3 clients that fail before sending start
 again for the time left.
+
+Connection table sizing uses [ctsize](jobs/ctsize.sh) (prepend `CASES=` and its settings), which sets
+`max_connections` by hand on the running NATs with [box/ctnat.sh](box/ctnat.sh) and fills the table with
+[hold](hold): idle established TCP connections through the NAT with no socket at either end, from every generator
+address. hold's and churn's ports are untracked by the generators' and receiver's security groups, whose connection
+tracking allowance would otherwise be the limit. [scripts/ctsize-summary.py](scripts/ctsize-summary.py) times each
+full copy from the NATs' samples. [nftab](jobs/nftab.sh) compares natpair's native nftables firewall with iptables on
+one build.
 
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:

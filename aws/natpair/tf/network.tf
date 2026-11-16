@@ -154,6 +154,17 @@ resource "aws_security_group" "generator" {
     cidr_blocks = [local.test_cidr]
   }
 
+  # hold (jobs/ctsize.sh) keeps millions of idle connections open through the NAT. AWS tracks each flow through a
+  # security group, up to an allowance per instance far below that, unless both directions allow TCP from and to
+  # 0.0.0.0/0 (replies here may come to any port). Generators have no public address, so the internet can't reach
+  # them through this.
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -172,6 +183,24 @@ resource "aws_security_group" "receiver" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = [local.test_cidr]
+  }
+
+  # The churn and hold ports, untracked as on the generators: churn past about 7,000 new connections a second
+  # exceeded this c7gn.xlarge's tracking allowance. jobs/ctsize.sh drops traffic to the churn ports from outside the
+  # test VPC on the receiver itself. The receiver drops everything to hold's ports before its kernel sees it, and the
+  # hold server answers only the shared ENI's address.
+  ingress {
+    from_port   = 6000
+    to_port     = 6063
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 7000
+    to_port     = 7255
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # Only for TARGET=public runs: worker traffic that leaves through the internet gateway arrives from the shared
