@@ -1454,3 +1454,234 @@ Destroyed on 2026-11-16 at 11:24 UTC and verified empty with direct describe cal
 instances, Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB tables, Lambda
 functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own volume,
 network interfaces and VPC remain. `tf/natpair.tf` points at `natpair.worktrees/noguard-no15`.
+
+# Connection table sizing (2026-11-16)
+
+natpair sets the kernel's connection table (`nf_conntrack_max`) to `max_connections`, 262,144 by default, with a
+quarter as many hash buckets, and conntrackd copies up to the same number to the standby. A full table drops new
+worker connections, so the size must hold the pair's peak with headroom. This round measures what each size costs and
+holds on the 2-vCPU NATs natpair will require: memory, forwarding, a full copy to the standby, a takeover, and churn.
+
+Build: natpair bench/no-guard-15 7f3cc62 (master with #9 and #11, plus #12, #16, #14 and #15), the release candidate,
+tarball sha256 b9ca2afa635fddd6c94ed7b124f9ae9892d0a09bb17565854e824355c8bc050c, module from
+`natpair.worktrees/noguard-15`, kernel 6.18. NATs c7g.large (4 GiB, 3.8 GiB usable), then c7gn.large (4 GiB).
+Generators c7gn.large, receiver c7gn.xlarge. Job: [ctsize](jobs/ctsize.sh), NAT side [box/ctnat.sh](box/ctnat.sh),
+copy timings [scripts/ctsize-summary.py](scripts/ctsize-summary.py). Run summaries, samples and journals stay out of
+the repository.
+
+**Sizes were set by hand on the running NATs, not by replacing them.** [box/ctnat.sh](box/ctnat.sh) `resize` makes
+the same changes natpair bootstrap makes at boot: `max_connections` in `/etc/natpair/config.json`,
+`nf_conntrack_max` and `nf_conntrack_buckets` (a quarter) with sysctl, conntrackd's `HashLimit` and `HashSize` (a
+quarter) in its configuration, then a conntrackd restart, the standby first. Bootstrap also sets the two sysctls on a
+running kernel, so the kernel side is the same. Replacing both NATs per size would have cost about 4 minutes each.
+
+## How the table was filled
+
+[hold](hold) opens real TCP connections through the owner and leaves them idle, without a socket at either end, so
+millions fit on small hosts. Each is a full handshake (SYN, SYN-ACK, ACK) through the NAT, which the NAT's table marks
+established and assured, as it does a worker's idle keep-alive connection, and conntrackd copies it. A raw socket
+sends, a packet socket with a BPF filter sees the answers, and each end drops the other's packets in its `raw` table
+before its kernel would answer with a reset. The connections came from all 8 generator addresses (4 on each
+generator) to 256 ports on the receiver, so no destination address and port took more than about 16,000 of the
+shared address's 64,000 ports. hold opened 20,000 connections a second in chunks of up to 524,288, checking both NATs'
+MemAvailable between chunks, and closed them with resets afterwards.
+
+The generators' and receiver's security groups track connections, and AWS's tracking allowance per instance is far
+below a million. Churn at 8,000 new connections a second already exceeded the receiver's (`conntrack_allowance_exceeded`
+4,576 a second at 10,000). hold's ports and churn's ports are now untracked on those hosts (both directions allow TCP
+from and to 0.0.0.0/0, see [tf/network.tf](tf/network.tf)), with the receiver's own firewall dropping churn traffic
+from outside the test VPC. natpair's own security group is untracked already, so this limit never applies to a pair.
+
+## Results
+
+"Held" is the owner's table at the measurement: the job filled to 95% of each size, but every takeover lost entries
+(below), so on c7g.large the 512k and 1M rows held what survived plus a new fill. Memory is from `/proc/meminfo`,
+`/proc/slabinfo` and each daemon's resident set. "Kernel" is the growth of the slab caches (the `nf_conntrack` slab
+is 256 bytes an entry, and its extensions add about 130). "Available" is MemAvailable out of 3.8 GB. natpair's
+resident set swings by hundreds of MB from one health round to the next, so the table shows the reading and its high
+mark. TCP is 16 flows from each generator as fast as they go, 20 s. "Copy" is the standby's copy after its conntrackd
+restarted and asked for the whole table, as a share of the owner's table. "Kept" is the new owner's table after
+`natpair maintenance`, as a share of the old owner's.
+
+| Type, size | Held | Owner: available, kernel, conntrackd, natpair (high) | Standby: conntrackd, natpair (high) | TCP, ns a packet | Churn near full, p99 | Copy | Kept | Old owner's lowest available in the takeover |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| c7g.large, empty | 66 | 3,429 MB, 0, 6 MB, 19 MB | 6 MB, 18 MB | 10.55 Gbps, 1,627 | 1,000/s, 1.2 ms | | | |
+| c7g.large, 262,144 | 248,013 | 2,857 MB, +104 MB, 142 MB, 194 (271) MB | 98 MB, 123 (183) MB | 10.45 Gbps, 1,756 to 1,762 | 327/s, 3 to 79 ms | 80% | 80% | 2,727 MB |
+| c7g.large, 524,288 | 448,021 | 2,466 MB, +174 MB, 245 MB, 321 (493) MB | 198 MB, 190 (271) MB | 10.09 Gbps, 1,962 | 655/s, 61 ms | 72% | 72% | 2,103 MB |
+| c7g.large, 1,048,576 | 819,541 | 1,870 MB, +311 MB, 446 MB, 468 (509) MB | 351 MB, 469 (601) MB | 10.21 Gbps, 1,890 | 1,310/s, 81 ms | 69% | 69% | 1,316 MB |
+| c7g.large, 2,097,152 | 1,991,197 | conntrackd **killed by the kernel's out-of-memory killer 5 times** at 1.15 GB, kernel +716 MB, natpair 490 (612) MB | 845 MB, 453 (583) MB | 10.10 Gbps, 1,919 | 2,621/s, 72 ms | not run | not run | |
+| c7gn.large, empty | 29 | 3,470 MB, 0, 6 MB, 18 MB | 6 MB, 18 MB | 19.00 Gbps, 1,209 | 1,000/s, 1.4 ms | | | |
+| c7gn.large, 262,144 | 249,049 | 2,879 MB, +99 MB, 143 MB, 193 (263) MB | 122 MB, 115 (167) MB | **15.64 Gbps**, 1,463 | 327/s, 22 ms | 87% | 90% | 2,747 MB |
+| c7gn.large, 524,288 | 498,073 | 2,368 MB, +191 MB, 271 MB, 248 (512) MB | 217 MB, 237 (324) MB | **13.81 Gbps**, 1,648 | 655/s, 45 ms | 73% | 76% | 2,132 MB |
+
+4,194,304 was not tried: 2,097,152 already doesn't fit in 4 GiB. Hash buckets cost 8 bytes each, 4 MB at 2,097,152
+(VmallocUsed didn't move), so they don't matter. The copies above are with natpair's configuration. With conntrackd's
+socket buffers raised to 16 MB (below), the copy at 995,788 was 93%.
+
+### Memory
+
+- **The docs' 160 MB per 262,144 entries is about a third of the real cost.** At 262,144 the owner's MemAvailable
+  fell 570 MB: the kernel's table about 100 MB (0.4 KB an entry), conntrackd's own copy 140 MB (0.55 KB), and
+  natpair 175 to 250 MB. Per entry, the owner pays about 1.9 KB at 1M (1.56 GB for 819,541) and the standby 1.6 KB
+  (conntrackd 0.47 KB a copied entry, plus natpair).
+- **natpair's own memory is the surprise.** Every health round (each second on the owner, each 5 s on the standby)
+  it runs `conntrackd -i` or `conntrackd -e`, reads the whole cache as text into memory, and parses it. Its resident
+  set reached 270 MB at 262,144 and about 600 MB from 512k up, where its 2 s command limit cuts the dumps short.
+- **A takeover is the peak.** The old owner keeps its whole kernel table until conntrackd's scheduled flush (60 s)
+  while it takes in the new owner's full copy: at 818,124 entries its conntrackd reached 676 MB and MemAvailable fell
+  to 1,316 MB (2.6 KB an entry). conntrackd doesn't give memory back: after the table drained, it stayed at 565 MB.
+- **2,097,152 doesn't fit in 4 GiB.** At 1.99M entries the owner's conntrackd grew to 1.15 GB and the kernel killed
+  it 5 times in 2 minutes. Forwarding continued (the kernel table is independent), but nothing was copied. Its
+  restarts also left the standby with a stale copy of 1.83M entries.
+
+### Copies and takeovers
+
+- **A full copy to the standby loses 13 to 31% of the table, at every size, and natpair doesn't notice.** A
+  restarted standby conntrackd asks for the whole table, and the owner sends it at once: 26 MB in 3,000 jumbo
+  datagrams at 262,144, 71 MB at 1M, in 1 to 3 s. The standby's UDP socket has the default 208 KB receive buffer and
+  drops part of the burst. conntrackd's resend recovers part of it, then stops: the copy stayed at 80%, 72% and 69%
+  (c7g.large, 262k, 512k, 1M), 87% and 73% (c7gn.large) for minutes. natpair checks a copy by the peer's 16 oldest
+  connections and its recent probe flows, which the first datagrams usually carry, so the standby reported
+  `"copied":true` and `"ready":true` throughout.
+- **A takeover then loses the same share.** The standby commits what it has, so after `natpair maintenance` the new
+  owner held 80%, 72% and 69% of the old owner's connections on c7g.large and 90% and 76% on c7gn.large. The rest get
+  resets on their next packet. Every takeover logged `"copied_state_ready":true`. The handover itself took 9 to 13 s
+  from the request, and natpair's commit step took 1.7 to 4.9 s, within its 10 s limit per conntrackd command.
+- **Larger socket buffers fix most of it.** With `RcvSocketBuffer` and `SndSocketBuffer` 16777216 in conntrackd's
+  UDP section on both NATs (set by hand, not natpair's configuration), the copy at 995,788 entries reached 93%,
+  against 69% at 827,041 without. Not complete, so natpair should also check a copy by its size against the peer's
+  table (each health report already carries both counts).
+- **From about 800,000 entries, natpair's checks time out and planned maintenance stops working.** `conntrackd -i`
+  took 3.3 s at 819,541 entries and 7.3 s at 1.99M, and `conntrackd -e` on the standby 2.0 s at 752,064 and 5.1 s
+  at 1.83M, against natpair's 2 s limit. At 996,175 entries the standby reported `"ready":false` for over 20
+  minutes, and `natpair maintenance` waited the whole time without handing over. A takeover after a failure doesn't
+  need a ready standby, but wasn't tested at this size.
+
+### Forwarding and churn
+
+- **A full table costs CPU per packet: 8 to 21% on c7g.large, 21 to 36% on c7gn.large.** On c7gn.large, where both
+  CPUs are the limit, TCP fell from 19.0 Gbps empty to 15.6 Gbps at 249,049 entries and 13.8 Gbps at 498,073. On
+  c7g.large, AWS's allowance (about 10.5 Gbps, `bw_out_allowance_exceeded` in every run) is the limit, so throughput
+  held and only CPU per packet rose (1,627 to 1,962 ns). natpair's dump parsing explains part of it: 8 to 15% of a
+  CPU with a full table, against 1% empty. The rest is the kernel's lookups in a bigger, fuller table (about 4 entries
+  a hash bucket at 95%).
+- **Churn near full stayed clean but slower.** No failures at any size, p99 from 1.2 ms empty to 20 to 80 ms with
+  the table at 95%.
+- **Each new connection a second holds about 30 entries** (TIME_WAIT is 30 s with #12): 6,000 a second held 181,000.
+  So a table holds about 0.9 x size / 30 new connections a second before natpair's 90% warning, about 7,900 at
+  262,144. Measured on c7g.large at 262,144: 7,000 a second held 81%, 8,000 held 91% (warnings, no failures), and
+  10,000 filled it: 231,000 packets dropped, 7% of connections timed out, p99 3.2 s.
+- **Past about 20,000 new connections a second, the NAT is the limit, not the table.** On c7g.large with an empty
+  4,194,304 table, 20,000 a second held 580,000 entries with the owner at 1.76 of 2 CPUs busy, p99 1.1 s and 0.05%
+  failures. Asked for 40,000, it completed 23,000 with 6% failures.
+- **A full table behaves as #12 intends.** With 262,144 established connections held and more offered, the kernel
+  dropped new connections (15,134 drops, and 5,992 of 6,000 churn connections timed out), natpair logged the 90% warning
+  and `the connection table is full ... dropped`, and its failed probes counted as "table full", not path failures:
+  no step-down, no takeover, no lease warnings. The owner's probe through the shared address needs a table entry,
+  so its health rounds fail while the table is full, but none count.
+- **The NAT tops out at about 20,000 new connections a second on either type.** With an empty 1,048,576 table on
+  c7gn.large, 20,000 a second completed 19,981 with 0.09% failures and p99 1.1 to 1.3 s. Asked for 30,000, it
+  completed 21,108 with 7.7% failures. The 262,144 runs on c7gn.large matched c7g.large: 8,000 a second held 91%
+  with 1 failure, and 10,000 filled the table and 7% of connections timed out. No step-down in any churn run on
+  either type.
+
+## Recommendation
+
+**Use a fixed default of 524,288 for now, up from 262,144, and keep `max_connections` as an explicit override. Size
+automatically from memory only after natpair stops dumping whole caches every round.**
+
+- **A rule from memory.** The peak cost is a takeover: the old owner holds its kernel table, its own conntrackd copy
+  and the incoming full copy, with natpair parsing dumps on top. That measured 2.6 KB an entry (MemAvailable 1,316
+  MB left at 818,124 entries on a 3.8 GB NAT). The rule: the largest allowed power of two whose entries at 2.6 KB
+  each stay under 50% of MemTotal. 50% leaves what the NAT needed beyond the table here: about 400 MB for the OS,
+  page cache and idle daemons, conntrackd's memory it never returns (565 MB after a 1M table drained), natpair's dump
+  parsing swinging by up to 400 MB a round, and a second full copy when natpair finds a copy incomplete. At 818,124
+  entries on 4 GiB (55% at the peak) the NAT ran with 1.3 GB left, and at 1.99M (about 135%) conntrackd was killed.
+- **What it gives.** c7g.large and c7gn.large (3.8 GB): 730,000 entries, so 524,288. c7g.xlarge and c7gn.xlarge
+  (7.7 GB): 1.48M, so 1,048,576.
+- **Why not automatic yet.** From about 800,000 entries natpair's 2 s dump limit breaks the standby's readiness and
+  `natpair maintenance` hangs, so every size natpair supports today has to stop at 524,288 anyway, and the rule gives
+  one number. At 524,288 the dumps took 1.6 to 2.1 s with the table at 95%, right at the limit, and the standby
+  stayed ready. Once the health check stops dumping caches (for example, sample the oldest entries with `conntrack`
+  instead of `conntrackd -i`, and count copies from `conntrackd -s`), switch to the rule, which then gives the xlarges
+  1,048,576.
+- **Keep the override, and have natpair warn past the rule.** An explicit `max_connections` above what the rule
+  allows should log a warning at boot naming the memory it needs.
+- **The churn each size sustains** (TIME_WAIT 30 s, below the 90% warning): 262,144 about 7,900 new connections a
+  second (8,000 measured at 91%), 524,288 about 15,700, and 1,048,576 the NAT's own limit, about 20,000, on both
+  types. Long-lived connections take room from that one for one: a pair holding 300,000 idle connections at 524,288
+  sustains about 5,700 a second.
+- **What a bigger limit costs while unused: nothing.** Memory and CPU follow the entries held, not the limit. The
+  hash buckets are 8 bytes each (2 MB at 1M), and more buckets for the same entries make lookups cheaper.
+
+## Risks and fixes for natpair
+
+- **A full copy silently loses 13 to 31% of the connections, and a takeover then drops them** (above). This applies
+  to every size, including today's default. Fix: set conntrackd's UDP `RcvSocketBuffer` and `SndSocketBuffer` (16 MB
+  gave 93% at 1M, against 69%), and count a copy as complete only when its size is near the peer's tracked count,
+  not only by the 16 oldest entries.
+- **natpair's dumps.** Each health round reads conntrackd's whole cache into memory: up to 600 MB of natpair's
+  memory, 8 to 15% of a CPU, and from about 800,000 entries past the 2 s limit, which blocks planned maintenance.
+- **The docs' memory figure is low.** Each 262,144 connections in the table costs about 0.6 GB on the owner and
+  0.35 GB on the standby with this build, not 160 MB.
+- **A full table costs throughput on c7gn.large:** 19.0 Gbps empty against 15.6 Gbps at 249,049 entries and 13.8 Gbps
+  at 498,073. A pair that carries both many idle connections and line-rate traffic forwards less.
+- **Not covered:** long-lived connections and churn at the limit together, the xlarge types (the rule's
+  numbers there are extrapolated from the larges), and a failure takeover with a 1M table.
+
+## Cost and status
+
+Bucket at 11:43, destroy 15:35 to 15:36 UTC. c7g.large NATs 11:43 to 14:01 (2.3 h at about $0.68 an hour), c7gn.large
+NATs 14:01 to 15:36 (1.6 h at about $0.78, including the nftables A/B below), S3, DynamoDB and Lambda about $0.03:
+about $2.80 in all, of which sizing about $2.05. The queue sat idle from 11:52 to 12:21 while a Terraform apply and
+job uploads of mine hung, and three of my job fixes cost reruns (stall detection, maintenance with an unready
+standby, the receiver's SSM permissions).
+
+Destroyed on 2026-11-16 at 15:36 UTC and verified empty with direct describe calls in the sandbox account: the 5
+bench instances terminated, and no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket,
+DynamoDB tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and
+its own volume, network interfaces and VPC remain. `tf/natpair.tf` points at `natpair.worktrees/noguard-15`.
+
+# nftables vs iptables (2026-11-16)
+
+natpair feat/nftables-prototype 04e062f (master with #11, #12 and #16, without #14 and #15) adds a native nftables
+backend behind `"firewall": "nftables"` (default iptables): the same firewall, SNAT and fence as native tables, where
+the iptables backend runs through `iptables-nft` and its compatibility layer for `conntrack`, `socket`, `hashlimit`
+and the fence's `bpf` matches. The nftables fence renews a timed set element by running `nft` on every 500 ms
+renewal. Tarball sha256 f1cfbcf0f06eb030f532e4ec0c5fd51102f819aedc54a0cbb3ddc9f302d096f8 (binary 97550d8d).
+
+Both backends ran the same build on the same c7gn.large NATs, kernel 6.18, installed on the running pair and
+switched by editing the configuration and rebooting each NAT, the standby first, as natpair's operations guide
+describes. [info](jobs/nftab.sh) confirmed each state: iptables had 20 `NATPAIR` chains, nftables had only the `ip
+natpair` and `ip natpair_fence` tables and a grant element expiring in under 4 s. Job: [nftab](jobs/nftab.sh). 3
+rounds per backend of TCP as fast as 32 flows go and 64-byte UDP at 1.2M and 2.5M packets a second over 128 fixed
+flows (run.sh `MODE=raw`), 30 s each. Forwarded is the shared ENI's transmit rate summed over both NATs.
+
+| Load, 3 runs | iptables | nftables |
+| --- | --- | --- |
+| TCP | 18.82, 18.63, 18.02 Gbps. 1,215, 1,229, 1,266 ns a packet. Busiest CPU 100%. 0 takeovers | 18.58, 18.59, 18.38 Gbps. 1,229, 1,228, 1,243 ns. Busiest CPU 100%. 0 takeovers |
+| UDP 1.2M pps | Forwarded 1,013k, 1,016k, 1,019k. 1,974, 1,968, 1,963 ns. Takeovers 0, 1, 0. Ping loss 17 to 21% | Forwarded 1,085k, 1,075k, 1,033k. 1,842, 1,861, 1,598 ns (the last with a takeover). Takeovers 0, 0, 1. Ping loss 9 to 20% |
+| UDP 2.5M pps | Takeovers 2, 2, 2. Forwarded 9k, 809k, 822k. Shared Elastic IP retries 9, 6, 1 | Takeovers 2, 2, 2. Forwarded 784k, 605k, 958k. Retries 5, 7, 3 |
+
+No lease renewal failures, no lease store warnings and no failed DNS lookups in any run of either backend. Every
+step-down was `stepped down after corroborated path failure`, the overload flapping #15 fixes, which this build
+doesn't have. None came from the fence: a missed renewal would end the session with a fence error or let the grant
+expire, and neither happened, even under the 2.5M floods with both CPUs full.
+
+Fence test, 2 rounds per backend: during light TCP and pings through the NAT, the owner's daemon was frozen with
+SIGSTOP, and the owner's shared ENI was watched every 50 ms. Times from the freeze:
+
+| | Forwarding stops | Peer acquires | Peer forwards |
+| --- | --- | --- | --- |
+| iptables | 3.96 s, 3.89 s | 6.3 s, 6.1 s | 17.5 s, 13.2 s |
+| nftables | 3.51 s, 3.96 s | 5.9 s, 6.2 s | 17.0 s, 13.7 s |
+
+Both hold for the 4 s grant and take over in about 6 s. The 7 to 11 s from acquiring to forwarding is the takeover's
+own steps, the same for both. Each frozen daemon, once resumed, ended its session with `lease lost: forwarding
+permission expired`.
+
+**Verdict: nftables is as good as iptables, and slightly faster where the CPU is the limit.** TCP is the same within
+run-to-run spread (18.5 Gbps either way). At 1.2M small packets a second, with both CPUs full, nftables forwarded
+about 6% more (1,080k against 1,016k in the clean runs) at 6% less CPU a packet. Its fence stopped forwarding and
+handed over on the same schedule, and running `nft` every 500 ms caused no missed renewal even when flooded. Not
+covered: kernel 6.1, a 1-vCPU NAT, and a build with #15, where the 2.5M runs wouldn't be dominated by flapping.
