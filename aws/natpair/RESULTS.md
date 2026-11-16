@@ -1320,3 +1320,137 @@ Destroyed on 2026-11-16 at 06:54 UTC and verified empty with direct describe cal
 instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and network interfaces remain. `tf/natpair.tf` points at `natpair.worktrees/final3`.
+
+# 2-vCPU without the guard: is #15 needed? (2026-11-16)
+
+natpair#17 (the XDP overload guard) is closed, and natpair will require 2 or more vCPUs instead. This round asks two
+questions on c7gn.large NATs (2 vCPUs) without the guard: does a large stay stable when flooded beyond what it
+forwards, and is #15 (a congested path keeps its owner, plus the 10-minute congestion cap) still needed? The rule set
+before the run: if the build without #15 shows no takeovers and never 2 failed rounds in a row under any flood, #15 is
+not needed on 2-vCPU NATs.
+
+Builds, both from natpair's master 3c89445 (which has #9 and #11):
+
+- N, bench/no-guard-no15 f69dc6d: the merges of #11 (fd4a561, no change since master has it squashed), #12
+  (1e35e2b), #16 (a977169) and #14 (d2c6c25). Its tree is round 3's bench/final3-no15 before #17 (bf45658). Tarball
+  sha256 f8530007ecdb4ef88f4fdc9be21c160d2b1883f32d2bba43b86294db05b97a31, binary 425a30e0.
+- W, bench/no-guard-15 7f3cc62: N plus #15 at 2e90e68, which has the congestion cap (`congestion_handover_minutes`,
+  default 10). The only conflict was the list of settings that need new NATs in `docs/operations.md` (keep both
+  additions). Tarball sha256 b9ca2afa635fddd6c94ed7b124f9ae9892d0a09bb17565854e824355c8bc050c, binary 0a59aac1.
+
+Both built with `go build -trimpath -ldflags "-s -w -X main.release=v0.1.99"` (the release workflow's flags) and Go
+1.27.3, then packed with `deploy/` as the release archive is. Before AWS: `go vet` (darwin and linux) and `go test
+-race ./...` on both. Not run this round: golangci-lint, `make test-privileged` and the fault campaign.
+
+Module from `natpair.worktrees/noguard-no15` (W's Terraform only adds the optional `congestion_handover_minutes`,
+left unset), `kernel` 6.18 (6.18.62-127.179). Fresh deploy at 09:18 UTC, all five instances SSM Online on the first
+boot by 09:20. NATs c7gn.large with irqbalance active and threaded NAPI on every ENI. Generators c7gn.xlarge (4
+vCPUs, up from c7gn.large) and receiver c7gn.xlarge. N ran first, then W was installed on both NATs with
+[build-swap](jobs/build-swap.sh). Jobs: [noguard](jobs/noguard.sh). Run summaries and journals stay out of the
+repository.
+
+## The load: fixed UDP flows without iperf3
+
+A large forwards about 0.98M small UDP packets a second. To offer 2.5M and 4M, each generator sends 64-byte UDP
+payloads (92-byte packets, as iperf3 `-l 64` sends) over 64 fixed flows, 128 in all, with [flood](flood)'s new
+`-flows` mode (`run.sh MODE=raw`). Each generator's own ENA transmit counter confirmed the rate: 1.2M, 2.5M and 3.97M
+to 4.0M packets a second. iperf3 couldn't do it here. Each client exchanges setup messages with its server through
+the same NAT, and once the first clients fill the NAT past what it forwards, later clients' setup fails (`unable to
+read from stream socket`). Even with a retry for clients that never started, iperf3 sent only 1.4M to 1.7M packets a
+second when asked for 2.5M or 4M. AWS's `pps_allowance_exceeded` never moved on either NAT, so every drop in this
+round is the NAT's own receive ring.
+
+"Takeovers" counts ownership acquisitions, including ones that never opened forwarding. "Counted" is failed health
+rounds that count toward stepping down, and "in a row" the longest run of them on the serving NAT. "Dark" is the
+seconds of the 57 measured in which the pair forwarded under 10k packets a second in total. "Forwarded" is the shared
+ENI's transmit rate summed over both NATs, since the ENI moves. "EIP retries" counts `shared Elastic IP not working
+yet` from a new owner that can't yet prove the shared Elastic IP through the flood. The busiest CPU was 100% in every
+UDP and flood run of both builds, measured over the seconds a NAT forwarded.
+
+| Load | N, without #15 | W, with #15 |
+| --- | --- | --- |
+| UDP 1.2M pps, 3 x 60 s | Takeovers 2, 2, 0. Counted 15, 12, 9, **3 in a row**. Dark 11, 18, 0 s. Forwarded 764k, 620k, 991k. Ping loss 32, 43, 21%. EIP retries 2, 4, 0 | Takeovers 0, 0, 0. Counted 0, 0, 0. Dark 0 s. Forwarded 967k, 972k, 992k. Ping loss 24, 23, 23% |
+| UDP 2.5M pps, 3 x 60 s | Takeovers 4, 3, 4. Counted 21, 15, 16, **8 in a row**. Dark 36, 41, 40 s. Forwarded 295k, 206k, 205k. Ping loss 85 to 87%. EIP retries 12 to 20 | Takeovers 0, 0, 0. Counted 0, 1, 0. Dark 0 s. Forwarded 975k, 973k, 996k. Ping loss 72, 77, 73% |
+| UDP 4M pps, 3 x 60 s | Takeovers 2, 2, 2, two of which never opened forwarding. Counted 11, 4, 4, **4 in a row**. Dark 47, 56, 55 s. Forwarded 132k, 2k, 22k. Ping loss 91 to 92%. EIP retries 29 to 36 | Takeovers 0, 0, 1 (the congestion cap, below). Counted 3, 2, 1, never 2 in a row. Dark 0, 0, 12 s. Forwarded 978k, 973k, 753k. Ping loss 86, 86, 87% |
+| UDP 2.5M pps, 10 minutes | iperf3, which sent 2.03M (5 of 16 clients failed setup). **27 takeovers**, 2 of which never opened forwarding. 146 counted, 7 in a row. Dark 291 of 597 s. Forwarded 421k. Ping loss 88%, longest gap 38 s. EIP retries 115 | 1 takeover: the congestion cap 6 min 17 s in (below), forwarding open 12.5 s after the handover. 4 counted, never 2 in a row. Dark 12 s. Forwarded 977k. Ping loss 79%, longest gap 13 s |
+| 1M pps UDP to the owner's own address over the peering, TCP at 10 Gbps, 2 x 60 s | Takeovers 0, 0. Counted 4 and 6, 2 in a row once in each (the standby didn't confirm). Lease failures 1 and 3, lease kept. 8.29 and 8.41 Gbps. Ping loss 19, 22% | Takeovers 0, 0. Counted 1 and 3, never 2 in a row. Lease failures 8 and 4, lease kept. 7.27 and 7.29 Gbps on NAT a (see TCP). Ping loss 20, 18% |
+| TCP as fast as 32 flows go, 60 s | 17.99 Gbps, 1,216 ns a packet, 0 counted (owner NAT b) | 16.11 Gbps, 1,355 ns a packet with NAT a as owner. Again with NAT b as owner: 17.98 Gbps, 1,218 ns, 0 counted |
+
+No lease failures and no failed DNS lookups in any UDP run of either build. The own-address flood arrived at about
+710k packets a second on the owner's own ENI.
+
+**Verdict: keep #15. Without it, a 2-vCPU NAT is not stable past what it forwards.** N took over in 8 of 9 one-minute
+runs and 27 times in the 10-minute run, with up to 8 failed rounds in a row, so it fails the rule on every flood rate.
+Flapping wasn't the worst of it. At 2.5M and 4M the pair forwarded under 10k packets a second for 60 to 98% of each
+run. Each new owner opened forwarding, failed its probes and stepped down within about 15 s of taking over. At 4M a new owner
+couldn't prove the shared Elastic IP through the flood for 29 s, so its takeover failed and the other NAT tried and
+failed the same way. N's 10-minute run, which offered less (2.03M), changed owner about every 22 s:
+
+```
+09:33:01.2  NAT a  ownership session ended  "stepped down after corroborated path failure"
+09:33:01.5  NAT b  ownership acquired
+09:33:09.0  NAT b  forwarding open
+09:33:10.2  NAT b  health round "healthy":false  (then 13.2, 14.3, 15.3)
+09:33:15.3  NAT b  ownership session ended  "stepped down after corroborated path failure"
+09:33:15.7  NAT a  ownership acquired
+09:33:26.7  NAT a  forwarding open
+```
+
+**With #15, a large is stable beyond its capacity.** At 1.2M, 2.5M and 4M offered, W held ownership through every run
+apart from the cap, never counted 2 failed rounds in a row and forwarded its CPU ceiling, 967k to 996k packets a
+second, at every rate. The NIC drops the excess at random, so every flow, pings included, loses about the excess
+share: 23%, 73% and 86% ping loss against 19%, 61% and 76% offered over the ceiling. That ceiling is the hardware: both
+CPUs are full, and nothing in natpair raises it. It only decides whether the pair keeps forwarding at it.
+
+## The congestion cap
+
+- **Cap check, `congestion_handover_minutes` 1.** Set on both NATs in `/etc/natpair/config.json`, daemons restarted
+  standby first. With no load, an iptables rule dropped 85% of the packets leaving the owner's shared ENI (the NATs
+  have no `tc` for netem): `-t mangle -I POSTROUTING 1 -o ens6 -m statistic --mode random --probability 0.85 -j DROP`.
+  The first round found the path congested 3 s later, the owner handed over 61 s after that, and the peer opened
+  forwarding 9.8 s later. No round counted as a path failure. **Pass.**
+
+  ```
+  11:20:48    drop rule on the owner
+  11:20:51.8  the health probe failed, but the path is alive, so forwarding is congested ...
+  11:21:52.4  handing over because this NAT's path has been congested for longer than congestion_handover_minutes ...  "congested_for":60565448726
+  11:21:52.5  peer: ownership acquired  "copied_state_ready":false
+  11:22:02.4  peer: forwarding open
+  ```
+
+- **The 10-minute cap fired twice in the flood runs, as designed.** Once in the third 4M run (10:44:43,
+  `congested_for` 600.7 s) and once 6 min 17 s into the 10-minute run (10:56:51, 600.5 s). Each congestion run
+  spanned several back-to-back runs: a run ends only after a minute without congestion, and the gaps between runs were
+  about 50 s. So the cap fired about 10 minutes after continuous flooding began, not 10 minutes into one run. Each
+  time the flood followed the shared ENI to the new owner, which retried the Elastic IP check 4 to 6 times and opened
+  forwarding 12.5 s after the handover, then held.
+- **Risk, not seen here: a cap handover can fail under a heavier flood.** #15 doesn't change the takeover's check of
+  the shared Elastic IP, which needs an upload through it to pass. Under N's 4M floods that check failed for 29 s and
+  the takeover failed. Under W's 4M flood it took 12 s. If a flood keeps the new owner's check failing longer, a cap
+  handover leaves the pair dark until a takeover gets through. A check that accepts a congested path, as #15's health
+  check does, would close this.
+
+## Findings
+
+- **No bug in #11, #12, #14, #15 or #16.** Every forwarding open the journals caught (79) followed #16's threaded
+  NAPI step, and W's lease and DNS were clean in every UDP run.
+- **NAT a forwards about 11% fewer packets per CPU than NAT b**, on the same type and kernel: TCP 16.11 Gbps at 1,355
+  ns a packet against 17.98 Gbps at 1,218 ns for the same build. The own-address flood runs on W (7.27 and 7.29 Gbps,
+  NAT a) against N (8.29 and 8.41 Gbps, NAT b) carry the same host difference. #15 itself costs nothing measurable,
+  as in round 2.
+- **Bench notes, mine.** The first N UDP job (09:20 to 09:32) is discarded: `PROCS` is per generator, so it ran 256
+  flows at twice the asked rate, and 4 to 9 of 16 iperf3 clients failed setup. After that, N's 60 s runs with iperf3
+  (0.75M to 1.7M sent) took over 0 to 3 times each, 8 of 9 runs at least once, and are not in the table. N's
+  10-minute run is the iperf3 one at 2.03M, not repeated with flood. It fails on a lighter load than W carried. The
+  first cap job failed because the NATs have no `tc`. [box/host.sh](box/host.sh) now retries iperf3 clients that fail
+  before sending.
+
+## Cost and status
+
+Bucket at 09:17, destroy 11:23 to 11:24 UTC, 2.1 h at about $1.03 an hour (NATs 0.25, generators 0.50, receiver
+0.25, addresses and volumes 0.03), about $2.17, plus S3, DynamoDB and Lambda 0.02: about $2.19.
+
+Destroyed on 2026-11-16 at 11:24 UTC and verified empty with direct describe calls in the sandbox account: no bench
+instances, Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB tables, Lambda
+functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own volume,
+network interfaces and VPC remain. `tf/natpair.tf` points at `natpair.worktrees/noguard-no15`.
