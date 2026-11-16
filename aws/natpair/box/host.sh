@@ -191,6 +191,10 @@ elif [[ $role == gen && $MODE != none ]]; then
       sleep_until "$((LOAD_AT + c * (ON + OFF)))"
       run_clients "$ON" "c$c"
     done
+  elif [[ $PATTERN == step ]]; then
+    # The new clients start within about 100 ms of the old ones ending.
+    run_clients "$STEP_AT" step1
+    RATE=$RATE2 run_clients "$((DURATION - STEP_AT))" step2
   else
     run_clients "$DURATION" steady
   fi

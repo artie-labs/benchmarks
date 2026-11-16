@@ -11,6 +11,7 @@
 #   MSS= LEN=              TCP --set-mss, and the UDP payload length
 #   DURATION=60 PRE=5 POST=5  seconds of load, and of sampling before and after it
 #   PATTERN=steady|onoff ON=2 OFF=2  onoff repeats ON seconds of load and OFF seconds idle
+#   PATTERN=step STEP_AT= RATE2=  step runs RATE for STEP_AT seconds, then RATE2 for the rest of DURATION
 #   POLL=10ms              enapoll interval on the NATs. GPOLL and RPOLL (default 1s) set it on generators and receiver
 #   PING=0|1               generator 0 pings the receiver 100 times a second through the NAT
 #   HANDOVER_AT=           seconds into the load to run `natpair maintenance` on the owner, then `natpair resume`
@@ -38,12 +39,12 @@ RESULTS=${RESULTS:-/opt/natpair-bench-results}
 
 name=$1
 shift
-MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2
+MODE=up PROCS=2 STREAMS=8 RATE= MSS= LEN= DURATION=60 PRE=5 POST=5 PATTERN=steady ON=2 OFF=2 STEP_AT= RATE2=
 POLL=10ms GPOLL=1s RPOLL=1s PING=0 HANDOVER_AT= STOP_BELOW_GBPS= STOP_HOLD=60 TARGET=private
 PACING=keep TOGGLE_AT= LIGHT_RATE=100M CHURN_RATE=5000 CHURN_SIZE=4096 RXTHREADS=keep FLOOD= FLOOD_PPS=1000000 GUARD=keep
 for kv in "$@"; do
   case "${kv%%=*}" in
-    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE | RXTHREADS | FLOOD | FLOOD_PPS | GUARD) declare "$kv" ;;
+    MODE | PROCS | STREAMS | RATE | MSS | LEN | DURATION | PRE | POST | PATTERN | ON | OFF | STEP_AT | RATE2 | POLL | GPOLL | RPOLL | PING | HANDOVER_AT | STOP_BELOW_GBPS | STOP_HOLD | TARGET | PACING | TOGGLE_AT | LIGHT_RATE | CHURN_RATE | CHURN_SIZE | RXTHREADS | FLOOD | FLOOD_PPS | GUARD) declare "$kv" ;;
     *) echo "unknown setting: $kv" >&2; exit 2 ;;
   esac
 done
@@ -61,7 +62,7 @@ start=$(($(date +%s) + 20))
 load_at=$((start + PRE))
 sample=$((PRE + DURATION + POST))
 generators_count=$(wc -w <<< "$GENERATORS")
-common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF RECEIVER_IP=$receiver_ip"
+common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF STEP_AT=$STEP_AT RATE2=$RATE2 RECEIVER_IP=$receiver_ip"
 timeout=$((sample + 300))
 
 systemctl restart 'iperf3@*'
@@ -91,7 +92,7 @@ fi
 if (($(date +%s) + 15 > start)); then
   start=$(($(date +%s) + 20))
   load_at=$((start + PRE))
-  common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF RECEIVER_IP=$receiver_ip"
+  common="GENERATORS_COUNT=$generators_count LIGHT_RATE=$LIGHT_RATE CHURN_RATE=$CHURN_RATE CHURN_SIZE=$CHURN_SIZE RUN=$run START=$start LOAD_AT=$load_at SAMPLE_SECONDS=$sample PRE=$PRE DURATION=$DURATION MODE=$MODE PROCS=$PROCS STREAMS=$STREAMS RATE=$RATE MSS=$MSS LEN=$LEN PATTERN=$PATTERN ON=$ON OFF=$OFF STEP_AT=$STEP_AT RATE2=$RATE2 RECEIVER_IP=$receiver_ip"
 fi
 
 echo "run $run: owner $owner, standby $standby, load at $(date -u -d "@$load_at" +%FT%TZ)"
@@ -204,7 +205,7 @@ python3 -I -c 'import json, sys; print(json.dumps(dict(a.split("=", 1) for a in 
   receiver_instance_type="$RECEIVER_INSTANCE_TYPE" natpair_release="$NATPAIR_RELEASE" \
   handover_sent="$handover_sent" handover_done="$handover_done" resume_done="$resume_done" stopped_at="$stopped_at" toggle_off="$toggle_off" toggle_on="$toggle_on" \
   MODE="$MODE" PROCS="$PROCS" STREAMS="$STREAMS" RATE="$RATE" MSS="$MSS" LEN="$LEN" DURATION="$DURATION" PRE="$PRE" \
-  POST="$POST" PATTERN="$PATTERN" ON="$ON" OFF="$OFF" POLL="$POLL" GPOLL="$GPOLL" RPOLL="$RPOLL" PING="$PING" \
+  POST="$POST" PATTERN="$PATTERN" ON="$ON" OFF="$OFF" STEP_AT="$STEP_AT" RATE2="$RATE2" POLL="$POLL" GPOLL="$GPOLL" RPOLL="$RPOLL" PING="$PING" \
   HANDOVER_AT="$HANDOVER_AT" STOP_BELOW_GBPS="$STOP_BELOW_GBPS" STOP_HOLD="$STOP_HOLD" TARGET="$TARGET" PACING="$PACING" RXTHREADS="$RXTHREADS" FLOOD="$FLOOD" FLOOD_PPS="$FLOOD_PPS" LIGHT_RATE="$LIGHT_RATE" CHURN_RATE="$CHURN_RATE" CHURN_SIZE="$CHURN_SIZE" \
   > "$dir/meta.json"
 aws s3 cp --only-show-errors "$dir/meta.json" "s3://$BUCKET/runs/$run/meta.json"
