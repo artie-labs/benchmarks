@@ -3,9 +3,11 @@
 # Usage: onbox.sh <instance id> <timeout seconds> <command...>
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
+# TF_DIR picks another stack's Terraform directory, such as tf-m for a second stack beside tf.
+tfdir=${TF_DIR:-$here/tf}
 # The AWS profile comes from tf/terraform.tfvars unless AWS_PROFILE is set, so a command never falls through to the
 # default profile's account.
-export AWS_PROFILE=${AWS_PROFILE:-$(sed -n 's/^aws_profile *= *"\(.*\)"/\1/p' "$here/tf/terraform.tfvars")}
+export AWS_PROFILE=${AWS_PROFILE:-$(sed -n 's/^aws_profile *= *"\(.*\)"/\1/p' "$tfdir/terraform.tfvars")}
 instance=$1; timeout=$2; shift 2
 params=$(python3 -I -c 'import json, sys; print(json.dumps({"commands": [sys.argv[1]], "executionTimeout": [sys.argv[2]]}))' "$*" "$timeout")
 id=$(aws ssm send-command --region "${AWS_REGION:-us-west-2}" --instance-ids "$instance" \

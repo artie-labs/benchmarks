@@ -3,13 +3,13 @@ resource "aws_eip" "shared" {
   tags   = { Name = "${var.name}-shared" }
 }
 
-# Phases 2 and 3 and the release candidate run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes
-# from a local checkout of the same commit, which matches the build's install.sh. The path assumes this repo is at
-# <workspace>/benchmarks.worktrees/<name> and natpair's bench branch at <workspace>/natpair.worktrees/<branch>,
-# here bench-ctfix (natpair bench/ctfix).
-# Phase 1 used git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
+# The release regression battery (RESULTS.md, "Release regression battery") starts each stack on natpair v0.1.1
+# with the v0.1.1 module, from a local checkout of the tag at <workspace>/natpair.worktrees/regress-v011, then moves
+# the module and release to the candidate for the in-place self-update (here natpair.worktrees/regress-cand3, natpair
+# bench/regress3). v0.1.1's module has no kernel input, so drop the kernel line while it's on v0.1.1.
+# Earlier rounds pointed this at natpair.worktrees/<bench branch>, such as bench-ctfix (natpair bench/ctfix).
 module "natpair" {
-  source = "../../../../../natpair.worktrees/bench-ctfix/terraform"
+  source = "../../../../../natpair.worktrees/regress-cand3/terraform"
 
   name    = var.name
   pair_id = var.name
@@ -38,6 +38,15 @@ resource "aws_iam_role_policy" "nat_bench" {
       { Effect = "Allow", Action = "s3:PutObject", Resource = "${aws_s3_bucket.bench.arn}/runs/*" },
     ]
   })
+
+  depends_on = [module.natpair]
+}
+
+# Session Manager and Run Command for the bench, whatever the module's version grants: v0.1.1's NAT role allows only
+# Session Manager's channels, and its NATs boot before the module attaches even that.
+resource "aws_iam_role_policy_attachment" "nat_ssm" {
+  role       = var.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 
   depends_on = [module.natpair]
 }

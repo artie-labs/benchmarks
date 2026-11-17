@@ -1,6 +1,6 @@
 # natpair limits: phase 1 results
 
-Measured 2026-11-11 in the customer sandbox (us-west-2a) with natpair v0.1.1 on c7gn.medium, then c7gn.large NATs,
+Measured 2026-11-11 on AWS in us-west-2 (zone us-west-2a) with natpair v0.1.1 on c7gn.medium, then c7gn.large NATs,
 both on Amazon Linux 2023 kernel 6.18.56. Load came from 2 c7gn.large generators through the NAT to a c7gn.xlarge
 receiver over same-zone VPC peering, with a 1500-byte MTU. Every run checked that the receiver saw only the shared
 ENI's private address. The summaries are in [results/](results), one JSON per run, and
@@ -217,7 +217,7 @@ out) from the shared Elastic IP for 60 s with no allowance counter moving on any
 forwarding instead (see [Phase 3](#phase-3-control-plane-priority)). These results stay as the record of what pacing
 did.
 
-Measured 2026-11-12 and 2026-11-13 in the same sandbox with natpair v0.1.99, built from the natpair branch
+Measured 2026-11-12 and 2026-11-13 on AWS in us-west-2 with natpair v0.1.99, built from the natpair branch
 bench/v0.1.99, and the module from the same commit. NATs booted with `pacing = { enabled = true }` and no start
 caps. Each run switched pacing with `natpair pacing-off` or `pacing-on` on both NATs first, alternating off and on
 within each round, 3 rounds. irqbalance was off.
@@ -946,7 +946,7 @@ all on 6.18.62.
   was about 1 s (a SYN retransmit) in 3 of its 6 generator streams, and this build's never passed 99 ms. The forwarding
   softirq time moved into the `napi/` threads (the owner's softirq share was 8 to 9% on the RC and 0 here), so the likely
   cause is threaded NAPI's scheduling, which #16 accepted for the 6.18 starvation fix. Phase 3 measured 7 to 17 ms on
-  the large before the RC. Worth a look if a customer runs connection-heavy workers, not a blocker.
+  the large before the RC. Worth a look for pairs with connection-heavy workers, not a blocker.
 - **Small notes.** Each planned handover logged 1 to 2 DNS timeouts, as the RC's did. The resize to c7gn.large took
   longer than it needed: a readiness check in the local resize script piped into `grep -q`, which made it loop for
   about 18 minutes while both NATs were already healthy (the bench sat idle on a medium and a large NAT, about $0.15).
@@ -973,7 +973,7 @@ medium 1.2 h, one of each 0.3 h, large 1.1 h, plus S3, DynamoDB and Lambda 0.02)
 ## Status
 
 Destroyed on 2026-11-14 at 18:38 UTC after the final release candidate runs, and verified empty with direct describe
-calls in the sandbox account: no bench instances (5 terminated), Elastic IPs, bench ENIs, volumes, VPCs, peering, endpoints,
+calls on AWS in us-west-2: no bench instances (5 terminated), Elastic IPs, bench ENIs, volumes, VPCs, peering, endpoints,
 the bucket, DynamoDB tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle
 instance and its own volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final`.
 
@@ -1058,7 +1058,7 @@ phase with the larger generators and receiver 0.63 h at $1.53 an hour, S3, Dynam
 
 ## Status
 
-Destroyed on 2026-11-15 at 09:08 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+Destroyed on 2026-11-15 at 09:08 UTC and verified empty with direct describe calls on AWS in us-west-2: 5 bench
 instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/napi-only` without the `kernel` input, which
@@ -1220,7 +1220,7 @@ Cost of this deploy: 20:49 to 02:27 UTC, 5.6 h, about $3.92: medium phase 2.67 h
 
 ## Status
 
-Destroyed on 2026-11-16 at 02:26 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+Destroyed on 2026-11-16 at 02:26 UTC and verified empty with direct describe calls on AWS in us-west-2: 5 bench
 instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and ENIs remain. `tf/natpair.tf` points at `natpair.worktrees/final2` with `kernel = var.nat_kernel`.
@@ -1316,7 +1316,7 @@ a row). TCP is the same within run-to-run spread on both sizes (round 2: 8.28 to
 Deploy 04:24 to destroy 06:54 UTC, 2.5 h, about $1.84: medium 1.1 h, about 0.73. Large 1.4 h, 1.09, of which 0.27 h
 idle after the last job. S3, DynamoDB and Lambda 0.02. The in-place resize took 3 minutes.
 
-Destroyed on 2026-11-16 at 06:54 UTC and verified empty with direct describe calls in the sandbox account: 5 bench
+Destroyed on 2026-11-16 at 06:54 UTC and verified empty with direct describe calls on AWS in us-west-2: 5 bench
 instances terminated, no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB
 tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own
 volume and network interfaces remain. `tf/natpair.tf` points at `natpair.worktrees/final3`.
@@ -1450,7 +1450,7 @@ CPUs are full, and nothing in natpair raises it. It only decides whether the pai
 Bucket at 09:17, destroy 11:23 to 11:24 UTC, 2.1 h at about $1.03 an hour (NATs 0.25, generators 0.50, receiver
 0.25, addresses and volumes 0.03), about $2.17, plus S3, DynamoDB and Lambda 0.02: about $2.19.
 
-Destroyed on 2026-11-16 at 11:24 UTC and verified empty with direct describe calls in the sandbox account: no bench
+Destroyed on 2026-11-16 at 11:24 UTC and verified empty with direct describe calls on AWS in us-west-2: no bench
 instances, Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket, DynamoDB tables, Lambda
 functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and its own volume,
 network interfaces and VPC remain. `tf/natpair.tf` points at `natpair.worktrees/noguard-no15`.
@@ -1637,7 +1637,7 @@ about $2.80 in all, of which sizing about $2.05. The queue sat idle from 11:52 t
 job uploads of mine hung, and three of my job fixes cost reruns (stall detection, maintenance with an unready
 standby, the receiver's SSM permissions).
 
-Destroyed on 2026-11-16 at 15:36 UTC and verified empty with direct describe calls in the sandbox account: the 5
+Destroyed on 2026-11-16 at 15:36 UTC and verified empty with direct describe calls on AWS in us-west-2: the 5
 bench instances terminated, and no Elastic IPs, bench ENIs, volumes, bench VPCs, peering, endpoints, the bucket,
 DynamoDB tables, Lambda functions or IAM roles, profiles and policies. Only the unrelated benchmark-oracle instance and
 its own volume, network interfaces and VPC remain. `tf/natpair.tf` points at `natpair.worktrees/noguard-15`.
@@ -1782,10 +1782,139 @@ until the destroy at 08:00 to 08:01 UTC on 2026-11-17. About $3.60 in all: NATs 
 generators and receiver 4 h at $0.50 ($2.00), public addresses, volumes, S3, DynamoDB and Lambda about $0.26. Without
 the stall it would have been about $1.10.
 
-Destroyed (72 resources) and verified empty with direct describe calls in the sandbox account: no bench instances,
+Destroyed (72 resources) and verified empty with direct describe calls on AWS in us-west-2: no bench instances,
 Elastic IPs, natpair network interfaces, bench VPCs, peering, bucket, DynamoDB tables, Lambda functions or IAM roles
 and profiles. Only an unrelated instance and its volume remain. `tf/natpair.tf` points at
 `natpair.worktrees/bench-ctfix`.
 
 Not covered: c7gn.large, churn near a full table with these builds, a failure takeover (not planned maintenance) at
 1M, and 2,097,152, which the memory rule already rules out on 4 GiB.
+
+# Release regression battery (2026-11-17)
+
+The live release, v0.1.1, against exactly what will land, on the same pairs: each pair started on v0.1.1 with
+v0.1.1's module, ran the core set, updated itself in place to the candidate under traffic, as production pairs will,
+and ran the set again. Two pairs at once: L with c7gn.large NATs (2 vCPUs, 4 GiB) and M with c7g.medium NATs (1 vCPU,
+2 GiB), on AWS in us-west-2. v0.1.1's module boots whatever kernel line is newest, here 6.1.190 on all four NATs, and
+an in-place update keeps it, so every candidate result below is on 6.1. Generators c7gn.large, receivers c7gn.xlarge
+(L) and c7gn.large (M). Job: [regress](jobs/regress.sh), queued with [scripts/submit-regress.sh](scripts/submit-regress.sh),
+which puts [ctsize](jobs/ctsize.sh)'s helpers in front. `TF_DIR=tf-m` points the scripts at a second stack beside
+`tf`.
+
+Builds (natpair), all built with `go build -trimpath -ldflags "-s -w -X main.release=<tag>"` and packed with `deploy/`
+as the release archive is. vet and `go test -race` pass on each, and natpair's fault campaign on v0.1.1 and on the
+final candidate:
+
+| Tag | Branch, commit | What | sha256 |
+| --- | --- | --- | --- |
+| v0.1.1 | the release, faaac9a | baseline | 68d771ed...a48ab |
+| v0.1.99 | bench/regress 359da36 | master 4849a69 + #15 86bbe20, #16 44bef14, #18 6e2b221, #19 542359a, #20 a2d42d1, #21 ba219c9 | 4792be9e...0c3c (not run on AWS) |
+| v0.1.98 | bench/regress2 ef415f5 | + #15 1f6d53d (congestion window fixed at 10 minutes), #18 de0610a (connection limit from memory), #19 1823cc5, #20 f2551b6 | 7476408a...833e |
+| v0.1.97 | bench/regress3 40e5cbf (tree 00f249b) | + #18 cb19ef6, #19 2e3b696, #20 8d0c55a. **The final candidate** | 100665e7...0a39 |
+
+Not in any candidate: #22 (security group), #6, #7, #8.
+
+## Results
+
+L ran v0.1.1, then v0.1.98 (from an in-place update), then v0.1.97 (a second in-place update). M ran v0.1.1, then
+v0.1.97. Gaps are the longest run of lost pings (100 a second through the NAT). Light TCP is 32 flows at 2 Gbit/s in
+all (L) or 400 Mbit/s (M, under its 500 Mbit/s baseline). "Flows broke" counts iperf3 clients that failed.
+
+| Test | v0.1.1 | Candidate | Result |
+| --- | --- | --- | --- |
+| natpair campaign (local) | 17/17 | 21/21 on v0.1.97, planned-maintenance alone 3/3. v0.1.99 failed planned-maintenance once (the standby wasn't ready within the campaign's 20 s), then passed 22/22 | Pass |
+| Planned handover under light TCP, 20,000 idle connections (A6) | L gap 9.6, 11.5, 7.8 s. M 12.5, 10.0 s. 0 flows broke | L 11.3, 11.7 s (v0.1.97), 7.8, 8.8 s (v0.1.98). M 9.0, 10.8 s. 0 flows broke, every idle entry kept | Pass, same |
+| SIGKILL to the owner's daemon (A2) | L 13.8, 14.4, 16.3, 13.7, 13.2, 17.7 s. M 14.0, 13.4, 17.9, 16.2, 16.5, 14.0 s | L 15.5, 17.0, 13.7, 17.3, 13.1, 12.7 s. M 13.8, 18.0 and the 4 runs below | Pass, same (below) |
+| Owner's shared path blackholed (B1) | Steps down, L gap 11.1 s, M 15.7 s | Steps down, L 16.8 s (v0.1.98), M 12.2 s | Pass |
+| Forced full copy under churn: idle connections (L 100,000, M 50,000), churn (L 3,000/s, M 1,000/s), the standby's conntrackd restarted, a handover 80 s later | L: the table filled (TIME_WAIT 120 s), the copy fell to 44,436 of 261,943 and the standby still said ready, `pps_allowance_exceeded` 126,765/s, 208,577 churn connections timed out. M: copy kept up, ready 10 s | L (v0.1.98): copy 214,843 of 205,173 within 10 s, ready 9 s, 0 allowance drops, 23,890 timeouts (the 9 s handover pause at 3,000/s). M: copy complete within 10 s, ready 8 s | Pass, better |
+| Full connection table, churn into it, then the owner killed (D4) | L 262,144 and M 262,144: the owner flapped (L 3 acquired, 4 ended, a lease failure). natpair 90 to 190 MB | L 524,288 (v0.1.98), M 262,144 (sized from memory): 1 clean takeover each, "table full" rounds not counted. natpair 18 MB. M lowest available 1.27 GB (v0.1.1 1.0 GB) | Pass, better |
+| 64-byte UDP through the shared address, 2 x 60 s (L 2.5M, M 1.2M a second) | L 3 takeovers a run, 13k to 24k forwarded. M 3 takeovers a run, 71k to 124k forwarded | L 0 takeovers, 1.007M to 1.018M forwarded. M 0 takeovers, 505k to 507k | Pass, much better |
+| 1.2M UDP for 10 minutes | M 28 takeovers, 68k forwarded | L 0 takeovers, 1.021M forwarded, 76 congested rounds. M 514k forwarded, 1 handover from #15's congestion window (287 of 389 rounds in the last 10 minutes congested or failed), the new owner's Elastic IP check accepted the congested path and forwarding opened 7.5 s later, gap 7.9 s | Pass, much better |
+| Handover and SIGKILL during 1.2M UDP | M: the handover worked (gap 11.3 s), the kill caused 3 takeovers | L gap 9.6 s and 15.4 s. M 9.8 s and 14.7 s. 1 takeover each | Pass, better |
+| TCP as fast as 32 flows go, 30 s | L 9.3 Gbps. M 4.8 and 5.8 Gbps | L 17.0 to 17.8 Gbps. M 5.8 Gbps | Pass, better |
+| In-place update under light TCP and 100,000 idle connections (L), 50,000 (M) | | L v0.1.1 -> v0.1.98: 1 handover, gap 8.2 s, 0 flows broke, each standby re-copied 99,500 within about 20 s of booting. M v0.1.1 -> v0.1.97: gap 9.9 s, 0 broke. L v0.1.98 -> v0.1.97: handed over 25 s after the standby was ready (below), 1 of 2 iperf3 control connections broke, data flows survived | Pass, one unexplained break |
+| Rollback v0.1.97 -> v0.1.1 in place (M) | | Soaked 3 min 13 s, 500 of 500 idle connections kept | Pass |
+
+ENA allowance counters: L's `pps_allowance_exceeded` stayed 0 in every candidate run, against 13 to 157 a second
+during v0.1.1's handovers and kills and 126,765 a second during its churn copy (conntrackd's fragmented copies, fixed by
+#11). M's c7g.medium exceeds its packet allowance under any load on both builds (15k to 23k a second at 400 Mbit/s,
+838k a second at full TCP). No lease renewal failure in any candidate run.
+
+## The updater skips its 2-minute soak
+
+Pre-existing: `internal/update` is unchanged since v0.1.1, so tomorrow's v0.1.1 owners have it. The owner hands over
+once "the peer runs the pinned release and is ready" has held for 2 minutes, checked once a minute. Before a new pin,
+that already holds for the current release, and the timer isn't reset when the pin changes. If the standby installs,
+reboots and reports ready between two of the owner's passes, the old timer carries over and the owner hands over at
+once. On L's second update the standby rebooted at 11:38:48, was ready at 11:39:14, and the owner handed over at its
+11:39:39 pass. On the first update the owner's pass caught the standby not ready yet and waited the full time.
+
+**Operator procedure that keeps the soak with v0.1.1's code**, verified 3 times (L twice, M's rollback once): (1)
+`natpair maintenance` on the standby, whose updater then waits ("maintenance was requested by hand"); (2) pin the
+release; (3) wait for the owner's next `update` line, "waiting for the peer to run the pinned release and be ready",
+at most a minute; (4) `natpair resume` on the standby. The owner then soaked 3 min 33 s, 3 min 32 s and 3 min 13 s
+after the standby was ready. While the standby is in maintenance, about 1 to 2 minutes, it doesn't offer to take over.
+
+**Does an early handover lose idle connections? Not found.** [box/idle.py](box/idle.py) holds idle TCP connections with
+a socket at each end and checks each with an echo. On L (v0.1.97), with about 100,400 entries in the table: 500 idle
+connections, the standby rebooted as an update does (ready 26 to 28 s later), `natpair maintenance` 0 s (3 rounds),
+25 s and 120 s (2 rounds) after ready: 3,000 of 3,000 echoed, and the new owner held all 500 entries each time. The new
+owner's table was 8 to 30 entries smaller than the old owner's in every round, soaked or not: short-lived entries that
+aren't copied. In the procedure runs, batches of 100 opened 30 s and 10 s before the standby's reboot, during it, and 5
+s and 20 s after ready (L), and 13 s and 4 s before, during, 5 s and 20 s after (M's rollback), plus 500 older ones:
+2,000 of 2,000 survived. The broken iperf3 control connection on L's second update (opened 13 s before the standby
+rebooted, idle for 20 minutes, "unable to send control message: Broken pipe" at the end) wasn't reproduced and isn't
+explained.
+
+## Is the kill gap longer on the candidate?
+
+No. 4 more SIGKILL runs per version per size, with each takeover split from the new owner's journal. natpair's
+service closes the fence when its daemon dies, so forwarding stops at the kill, and the gap is the time to the new
+owner's `forwarding open`.
+
+| | Kill to lease acquired | Acquired to forwarding open | Kill to open, s |
+| --- | --- | --- | --- |
+| L v0.1.1 | 5.9, 6.3, 6.4, 6.3 | 10.4, 7.3, 6.8, 11.5 | 16.3, 13.7, 13.2, 17.7 |
+| L v0.1.97 | 6.1, 6.1, 6.1, 6.0 | 7.6, 11.2, 7.0, 6.7 | 13.7, 17.3, 13.1, 12.7 |
+| M v0.1.1 | 6.1, 6.0, 6.4, 5.7 | 11.8, 10.1, 10.1, 8.3 | 17.9, 16.2, 16.5, 14.0 |
+| M v0.1.97 | 6.1, 5.9, 5.8, 5.8 | 10.1, 11.5, 9.6, 10.0 | 16.2, 17.4, 15.4, 15.8 |
+
+Means over all 6 kills per pair: L 14.9 s on both builds, M 15.3 s on v0.1.1 and 16.1 s on v0.1.97, inside each
+pair's run-to-run spread (L 12.7 to 17.7 s, M 13.4 to 18.0 s). Detection and the lease take 6 s on both. The spread is in the takeover, from two steps the candidate doesn't change:
+EC2 detaching the shared ENI from the dead owner's instance (between the detach request and the attach request: 2 to
+7 s), and the check of the shared Elastic IP, which needs 1 or 2 retries of 1.2 s until the new path works. The
+candidate's own steps (installing copied connections 0.0 to 0.1 s, against v0.1.1's 0.5 to 1.0 s, and turning on
+threaded receive processing) are faster or negligible.
+
+## Other measurements
+
+- **`conntrack -L` near a full table (L, v0.1.97, 497,600 entries, 524,288 limit).** 3.9 and 4.5 s, 1.7 s of CPU
+  (1.1 user, 0.6 system), 1.7 MB resident. During 40 s of TCP as fast as 32 flows go, with the dump 10 s in: 15.8 Gbps
+  against 16.9 without, the owner's probes timed out 2 to 5 times (counted as congested, not failures), 0 takeovers.
+  With the full table, TCP held 16.9 Gbps, against 13.8 Gbps at 498k in the sizing round before natpair stopped
+  parsing dumps.
+- **Connection limit from memory (#18).** Both c7g.medium NATs set 262,144 and logged it at start. Both c7gn.large NATs
+  logged `"connection limit","max_connections":524288,"reason":"the largest whose peak memory fits in half of the
+  instance's"`.
+
+## Bench notes
+
+- v0.1.1's NAT role has only Session Manager's channels, and its NATs boot before the module attaches even those, so
+  [tf/natpair.tf](tf/natpair.tf) attaches `AmazonSSMManagedInstanceCore` to the NAT role for the bench. One M NAT
+  still never registered and was replaced.
+- My `full` section restarted the wrong NAT's daemon after its kill (a variable set in a piped subshell), which left
+  one M NAT down from 10:54 to 11:47. Its v0.1.1 flood runs then had no standby and are discarded (rerun above), and
+  the owner correctly refused to update with a dead standby for 20 minutes. Fixed.
+- One planned handover in L's first v0.1.1 set never happened: SSM throttled the send of `natpair maintenance`.
+  [box/lib.sh](box/lib.sh) now retries sends. Rerun above.
+
+## Cost and status
+
+L ran 09:46 to 14:02 UTC (4.3 h at about $0.78 an hour, $3.33), M about 4.6 h at about $0.47 an hour ($2.16), S3,
+DynamoDB, Lambda and addresses about $0.15: about $5.65. Running two stacks at once needed more internet gateways and
+Elastic IPs than the region's defaults allowed.
+
+Both stacks destroyed (74 resources each, L at 14:02 and M at 14:24 UTC) and verified empty with direct describe calls:
+no bench instances, Elastic IPs, natpair network interfaces, bench VPCs or internet gateways, peering, volumes,
+endpoints, buckets, DynamoDB tables, Lambda functions or IAM roles and profiles. Only an unrelated instance and its
+volume remain. `tf/natpair.tf` points at `natpair.worktrees/regress-cand3`.

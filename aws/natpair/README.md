@@ -45,7 +45,7 @@ stack when done.
 
 - Terraform 1.6 or later, Go, and the AWS CLI with the
   [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
-- An AWS profile that can create VPCs, IAM roles and instances, such as the customer sandbox account's
+- An AWS account and profile that can create VPCs, IAM roles and instances, such as an account's
   `OrganizationAccountAccessRole`.
 
 ## Deploy
@@ -211,6 +211,17 @@ full copy from the NATs' samples. For builds with natpair's copy fixes (natpair#
 full copies and readiness after a conntrackd restart, a standby reboot and a takeover, and A/Bs the hash buckets, and
 its `ports` section checks the shared-port warning. Use `ctnat.sh resizefix` for those builds. [nftab](jobs/nftab.sh) compares natpair's native nftables firewall with iptables on
 one build.
+
+The release regression battery uses [regress](jobs/regress.sh), queued with
+`scripts/submit-regress.sh <name> <BUILD> "<CASES>" [KEY=value ...]`, which puts ctsize's helpers in front of it. Its
+sections cover planned and unplanned takeovers, a blackholed path, a forced full copy under churn, a full table,
+floods through the shared address, takeovers during a flood, the in-place update (`upgrade`, which says when to pin the
+new release), and idle connections across handovers right after a standby's reboot (`idleho`, with
+[box/idle.py](box/idle.py), which holds idle connections with a socket at each end and checks each with an echo).
+`EXPECT_RELEASE=` makes a job refuse to run unless both NATs report that release. [scripts/kill-split.py](scripts/kill-split.py)
+splits each SIGKILL takeover into its steps. To run two stacks at once, copy `tf` to another directory with its own
+`natpair.tf` and `terraform.tfvars` (a different `name`) and set `TF_DIR` for the scripts. Two stacks need 6 Elastic IPs
+and 4 internet gateways in the region.
 
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no
 `[Install]` section), so start them by hand:

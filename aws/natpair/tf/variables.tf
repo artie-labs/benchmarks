@@ -5,7 +5,7 @@ variable "region" {
 }
 
 variable "aws_profile" {
-  description = "The profile to use for the AWS CLI, such as my-sandbox-profile."
+  description = "The profile to use for the AWS CLI, such as my-profile."
   type        = string
   default     = null
 }

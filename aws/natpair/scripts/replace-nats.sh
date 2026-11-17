@@ -4,9 +4,11 @@
 # Usage: replace-nats.sh [extra terraform args]
 set -euo pipefail
 here=$(cd "$(dirname "$0")/.." && pwd)
-export AWS_PROFILE=${AWS_PROFILE:-$(sed -n 's/^aws_profile *= *"\(.*\)"/\1/p' "$here/tf/terraform.tfvars")}
+# TF_DIR picks another stack's Terraform directory, such as tf-m for a second stack beside tf.
+tfdir=${TF_DIR:-$here/tf}
+export AWS_PROFILE=${AWS_PROFILE:-$(sed -n 's/^aws_profile *= *"\(.*\)"/\1/p' "$tfdir/terraform.tfvars")}
 export AWS_REGION=${AWS_REGION:-us-west-2}
-tf() { terraform -chdir="$here/tf" "$@"; }
+tf() { terraform -chdir="$tfdir" "$@"; }
 owner() {
   aws ec2 describe-network-interfaces --network-interface-ids "$(tf output -raw shared_eni_id)" \
     --query 'NetworkInterfaces[0].Attachment.InstanceId' --output text

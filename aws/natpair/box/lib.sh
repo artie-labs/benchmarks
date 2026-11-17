@@ -2,14 +2,21 @@
 # Helpers for jobs on the receiver: the bench layout and SSM Run Command on the NATs and generators.
 . /etc/natpair-bench.env
 . /opt/natpair-bench/bench.env
-export AWS_REGION AWS_DEFAULT_REGION=$AWS_REGION BUCKET
+export AWS_REGION AWS_DEFAULT_REGION=$AWS_REGION BUCKET AWS_RETRY_MODE=adaptive AWS_MAX_ATTEMPTS=10
 
 # ssm_send <instance> <timeout seconds> <shell command>: starts the command as root and prints its command ID.
 ssm_send() {
   local params
   params=$(python3 -I -c 'import json, sys; print(json.dumps({"commands": [sys.argv[1]], "executionTimeout": [sys.argv[2]]}))' "$3" "$2")
-  aws ssm send-command --instance-ids "$1" --document-name AWS-RunShellScript --timeout-seconds 60 \
-    --parameters "$params" --query Command.CommandId --output text
+  # SendCommand throttles when a run starts commands on every host at once, and a lost `natpair maintenance` made a
+  # handover silently not happen, so retry a failed send.
+  local i
+  for i in 1 2 3 4 5 6; do
+    aws ssm send-command --instance-ids "$1" --document-name AWS-RunShellScript --timeout-seconds 60 \
+      --parameters "$params" --query Command.CommandId --output text && return 0
+    sleep "$i"
+  done
+  return 1
 }
 
 # ssm_wait <command ID> <instance>: waits for the command, prints its output, and fails unless it succeeded.
