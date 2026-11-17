@@ -5,6 +5,10 @@
 #                                nf_conntrack_max and nf_conntrack_buckets (a quarter), conntrackd's HashLimit and
 #                                HashSize (a quarter), then restarts conntrackd
 #   ctnat.sh buffers <bytes>     sets conntrackd's UDP RcvSocketBuffer and SndSocketBuffer, then restarts it
+#   ctnat.sh resizefix <max>     as resize, for builds with natpair's copy fixes (bench/ctfix): one hash bucket per
+#                                entry in the kernel and conntrackd, ResendQueueSize max, socket and netlink buffers
+#                                64 bytes an entry (netlink growth twice that), as natpair bootstrap writes them
+#   ctnat.sh buckets <n>         sets nf_conntrack_buckets alone, on the running kernel
 #   ctnat.sh snap                one line of memory and table figures, the time to dump each conntrackd cache, and
 #                                the latest health round
 #   ctnat.sh sample <name> <s>   samples once a second in the background for up to s seconds, or until
@@ -46,6 +50,33 @@ os.replace(path + ".tmp", path)' "$max" || exit 1
     echo "$(role) max $(sysctl -n net.netfilter.nf_conntrack_max) buckets $(sysctl -n net.netfilter.nf_conntrack_buckets)" \
       "$(grep -E 'Hash(Size|Limit)' "$conf" | xargs) conntrackd $(systemctl is-active conntrackd)"
     ;;
+  resizefix)
+    max=$2
+    python3 -I -c '
+import json, os, sys
+path = "/etc/natpair/config.json"
+config = json.load(open(path))
+config["max_connections"] = int(sys.argv[1])
+with open(path + ".tmp", "w") as f:
+    json.dump(config, f, indent=2)
+os.chmod(path + ".tmp", 0o600)
+os.replace(path + ".tmp", path)' "$max" || exit 1
+    natpair validate --config /etc/natpair/config.json > /dev/null || exit 1
+    sysctl -qw "net.netfilter.nf_conntrack_max=$max" "net.netfilter.nf_conntrack_buckets=$max" || exit 1
+    buf=$((max * 64))
+    sed -i -E "s/^( *HashSize ).*/\1$max/; s/^( *HashLimit ).*/\1$max/; s/^( *ResendQueueSize ).*/\1$max/;
+      s/^( *(Snd|Rcv)SocketBuffer ).*/\1$buf/; s/^( *NetlinkBufferSize ).*/\1$buf/;
+      s/^( *NetlinkBufferSizeMaxGrowth ).*/\1$((buf * 2))/" "$conf"
+    systemctl restart conntrackd
+    sleep 2
+    echo "$(role) max $(sysctl -n net.netfilter.nf_conntrack_max) buckets $(sysctl -n net.netfilter.nf_conntrack_buckets)" \
+      "$(grep -E 'Hash(Size|Limit)|ResendQueueSize|SocketBuffer|NetlinkBuffer' "$conf" | xargs) conntrackd $(systemctl is-active conntrackd)" \
+      "$(ss -uanm 'sport = :3780' | grep -o 'rb[0-9]*' | head -1)"
+    ;;
+  buckets)
+    sysctl -qw "net.netfilter.nf_conntrack_buckets=$2" || exit 1
+    echo "$(role) buckets $(sysctl -n net.netfilter.nf_conntrack_buckets) count $(cat /proc/sys/net/netfilter/nf_conntrack_count)"
+    ;;
   buffers)
     # An experiment, not natpair's configuration: larger socket buffers for conntrackd's copies, so a full copy's
     # burst isn't dropped by the standby's 208 KB default receive buffer.
@@ -70,7 +101,7 @@ os.replace(path + ".tmp", path)' "$max" || exit 1
       "ctd_rss_kb=$(rss conntrackd VmRSS) ctd_hwm_kb=$(rss conntrackd VmHWM) natpair_rss_kb=$(rss natpair VmRSS)" \
       "natpair_hwm_kb=$(rss natpair VmHWM) $(caches)dump_i_lines=$il dump_i_s=$i_s dump_e_lines=$el dump_e_s=$e_s" \
       "$(conntrack -S 2> /dev/null | tr ' ' '\n' | awk -F= '$1 == "drop" {d += $2} $1 == "early_drop" {e += $2} END {printf "ct_drop=%d ct_early_drop=%d", d, e}')"
-    journalctl -u natpair -o cat | grep '"health round"' | tail -1 | cut -c1-700
+    journalctl -u natpair -o cat | grep '"health round"' | tail -1 | cut -c1-1000
     ;;
   sample)
     name=$2 seconds=$3

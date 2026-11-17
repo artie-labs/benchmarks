@@ -6,10 +6,10 @@ resource "aws_eip" "shared" {
 # Phases 2 and 3 and the release candidate run dev builds of natpair v0.1.99 (see RESULTS.md), so the module comes
 # from a local checkout of the same commit, which matches the build's install.sh. The path assumes this repo is at
 # <workspace>/benchmarks.worktrees/<name> and natpair's bench branch at <workspace>/natpair.worktrees/<branch>,
-# here noguard-15 (natpair bench/no-guard-15).
+# here bench-ctfix (natpair bench/ctfix).
 # Phase 1 used git::https://github.com/artie-labs/natpair.git//terraform?ref=v0.1.1 with the v0.1.1 release.
 module "natpair" {
-  source = "../../../../../natpair.worktrees/noguard-15/terraform"
+  source = "../../../../../natpair.worktrees/bench-ctfix/terraform"
 
   name    = var.name
   pair_id = var.name

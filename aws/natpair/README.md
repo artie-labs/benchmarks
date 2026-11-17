@@ -207,7 +207,9 @@ Connection table sizing uses [ctsize](jobs/ctsize.sh) (prepend `CASES=` and its 
 [hold](hold): idle established TCP connections through the NAT with no socket at either end, from every generator
 address. hold's and churn's ports are untracked by the generators' and receiver's security groups, whose connection
 tracking allowance would otherwise be the limit. [scripts/ctsize-summary.py](scripts/ctsize-summary.py) times each
-full copy from the NATs' samples. [nftab](jobs/nftab.sh) compares natpair's native nftables firewall with iptables on
+full copy from the NATs' samples. For builds with natpair's copy fixes (natpair#18 to #20), its `fix` section times
+full copies and readiness after a conntrackd restart, a standby reboot and a takeover, and A/Bs the hash buckets, and
+its `ports` section checks the shared-port warning. Use `ctnat.sh resizefix` for those builds. [nftab](jobs/nftab.sh) compares natpair's native nftables firewall with iptables on
 one build.
 
 After a stop and start, the receiver's queue, iperf3 and churn services don't come back (their units have no

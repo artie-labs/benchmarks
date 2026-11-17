@@ -15,6 +15,15 @@
 #   bufab    at the current fill: a full copy to a restarted standby with conntrackd's UDP socket buffers raised to
 #            BUFFER bytes on both NATs (not natpair's configuration), then back to the defaults
 #   clear    resets every hold connection, then memory with an empty table at the current size
+#
+# For builds with natpair's copy fixes (natpair bench/ctfix, "Copy completeness and sizing fixes" in RESULTS.md):
+#   ports    with an empty table, PORTS_HELD idle connections to one receiver port, then checks the owner's
+#            shared-port warning and the health rounds' shared_ports_used, then closes them and checks the line
+#            for dropping back under
+#   fix      at FIX_SIZE (resized with ctnat.sh resizefix unless it is natpair's default, 524,288): fill to 95%,
+#            memory, TCP with one hash bucket per entry and with a quarter (BUCKET_ROUNDS rounds each), a full copy
+#            to a restarted standby conntrackd and to a rebooted standby, each timed until the standby is ready,
+#            then a takeover
 # FILL_RATE sets hold's connections a second in total, TAG the run names.
 CASES=${CASES:-base}
 . ./lib.sh
@@ -395,6 +404,130 @@ clear() {
   clear_all
   sleep 60
   snap cleared
+}
+
+# ready_after <nat> <epoch>: seconds from epoch until the NAT's first health round with "ready":true, or empty.
+ready_after() {
+  local at
+  at=$(on "$1" 60 "journalctl -u natpair --since @$2 -o short-unix | grep '\"health round\"' | grep -m1 '\"ready\":true' | cut -d' ' -f1" | first_line)
+  [[ -n $at ]] && awk -v a="$at" -v b="$2" 'BEGIN {printf "%.0f", a - b}'
+}
+
+# ready_by <nat> <epoch> <seconds>: waits up to that long for the NAT to log a ready round after epoch, and prints
+# how long it took.
+ready_by() {
+  local i r
+  for ((i = 0; i < $3; i += 10)); do
+    r=$(ready_after "$1" "$2")
+    if [[ -n $r ]]; then
+      say "ready after $r s"
+      return 0
+    fi
+    sleep 10
+  done
+  say "not ready after $3 s"
+  return 1
+}
+
+# resync_fix <label>: resync, then how long the standby took to report ready.
+resync_fix() {
+  local owner standby t0
+  owner=$(owner_nat)
+  standby=$(other_nat "$owner")
+  t0=$(date +%s)
+  resync "$1"
+  ready_by "$standby" "$t0" 600
+}
+
+# reboot_standby <label>: reboots the standby, as an upgrade does, then waits for its copy and for it to report
+# ready.
+reboot_standby() {
+  local owner standby target t0 got i
+  owner=$(owner_nat)
+  standby=$(other_nat "$owner")
+  target=$(table_count "$owner")
+  samplers sample "$t-$TAG-$1-reboot" 1200
+  t0=$(date +%s)
+  on "$standby" 30 "nohup sh -c 'sleep 2; systemctl reboot' > /dev/null 2>&1 &" > /dev/null
+  say "reboot: standby $standby rebooting, owner table $target"
+  sleep 60
+  for ((i = 0; i < 60; i++)); do
+    [[ -n $(external_count "$standby") ]] && break
+    sleep 5
+  done
+  say "reboot: standby back after about $(($(date +%s) - t0)) s"
+  copy_wait "$standby" "$target"
+  say "reboot: standby copy $got of $target after about $(($(date +%s) - t0)) s"
+  ready_by "$standby" "$t0" 900
+  samplers stop
+  events "$1-reboot" "$t0"
+}
+
+# tcp_buckets <label> <size>: TCP with one bucket per entry, then a quarter, BUCKET_ROUNDS times, on both NATs.
+tcp_buckets() {
+  local r nat
+  for ((r = 1; r <= ${BUCKET_ROUNDS:-2}; r++)); do
+    for b in "$2" $(($2 / 4)); do
+      for nat in "$NAT_A" "$NAT_B"; do ctnat "$nat" 120 buckets "$b" > /dev/null; done
+      say "buckets $b: $(ctnat "$(owner_nat)" 60 buckets "$b" | head -1)"
+      tcp_run "$1-b$b-r$r"
+    done
+  done
+  for nat in "$NAT_A" "$NAT_B"; do ctnat "$nat" 120 buckets "$2" > /dev/null; done
+}
+
+# ports: PORTS_HELD connections to receiver port 7000 alone, from every generator address.
+ports() {
+  local held=${PORTS_HELD:-45000} per owner t0 ids=() n v k cmd mode
+  per=$(((held + ${#addrs[@]} - 1) / ${#addrs[@]}))
+  owner=$(owner_nat)
+  start_server
+  snap empty
+  for mode in open close; do
+    t0=$(date +%s)
+    ids=()
+    for n in "${!gens[@]}"; do
+      v=GEN_ADDRS_$n
+      read -r -a a <<< "${!v}"
+      cmd="aws s3 cp --only-show-errors --region $AWS_REGION s3://$BUCKET/box/bin/hold /tmp/hold && chmod +x /tmp/hold
+command -v iptables > /dev/null || dnf install -y -q iptables-nft > /dev/null 2>&1
+iptables -t raw -C PREROUTING -p tcp -s $receiver_ip --sport 7000:7255 -j DROP 2> /dev/null || iptables -t raw -I PREROUTING -p tcp -s $receiver_ip --sport 7000:7255 -j DROP"
+      for k in "${!a[@]}"; do
+        cmd+="
+/tmp/hold -target $receiver_ip -source ${a[k]} -ports 7000-7000 -from 0 -count $per -rate 2000 $([[ $mode == close ]] && echo -close) -out /tmp/hold-p$k.json &"
+      done
+      cmd+="
+wait"
+      ids+=("$(ssm_send "${gens[n]}" 600 "$cmd")")
+    done
+    for n in "${!gens[@]}"; do ssm_wait "${ids[n]}" "${gens[n]}" > /dev/null; done
+    say "ports: $mode $((per * ${#addrs[@]})) connections to port 7000, owner table $(table_count "$owner")"
+    sleep 75
+    on "$owner" 60 "journalctl -u natpair --since @$t0 -o short-iso | grep -E 'shared address|back under' | cut -c1-600" | tee -a "$OUT/ports.txt"
+    on "$owner" 60 "journalctl -u natpair --since @$t0 -o cat | grep '\"health round\"' | grep -o '\"shared_ports_used\":[0-9.e-]*' | sort | uniq -c" | tee -a "$OUT/ports.txt"
+  done
+}
+
+fix() {
+  local size=${FIX_SIZE:-524288} label nat
+  label=$((size / 1024))k
+  say "=== fix $size"
+  if ((size != 524288)); then
+    for nat in "$(other_nat "$(owner_nat)")" "$(owner_nat)"; do
+      say "resizefix $size: $nat: $(ctnat "$nat" 300 resizefix "$size" | head -1)"
+    done
+    ready_wait 600
+  fi
+  fill_to $((size * 95 / 100)) || say "fill stopped early"
+  sleep 20
+  snap "fix$label-full"
+  tcp_buckets "fix$label" "$size"
+  resync_fix "fix$label"
+  snap "fix$label-after-resync"
+  reboot_standby "fix$label"
+  snap "fix$label-after-reboot"
+  takeover "fix$label"
+  snap "fix$label-after-takeover"
 }
 
 receiver_firewall

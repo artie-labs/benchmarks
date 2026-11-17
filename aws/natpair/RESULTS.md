@@ -1685,3 +1685,107 @@ run-to-run spread (18.5 Gbps either way). At 1.2M small packets a second, with b
 about 6% more (1,080k against 1,016k in the clean runs) at 6% less CPU a packet. Its fence stopped forwarding and
 handed over on the same schedule, and running `nft` every 500 ms caused no missed renewal even when flooded. Not
 covered: kernel 6.1, a 1-vCPU NAT, and a build with #15, where the 2.5M runs wouldn't be dominated by flapping.
+
+# Copy completeness and sizing fixes (2026-11-16)
+
+The sizing round above found that a full copy to the standby lost 13 to 31% of the table, that natpair still called
+the standby ready, and that from about 800,000 connections natpair's checks timed out so planned maintenance never
+handed over. This round checks the fixes: natpair#18 (conntrackd's socket buffers and resend queue sized for a full
+copy, a standby ready only with 95% of the owner's table, default `max_connections` 524,288, one hash bucket per
+entry), natpair#19 (the health rounds no longer read whole conntrackd caches; bounded passes run outside them) and
+natpair#20 (a warning when one destination uses 70% of the shared address's ports).
+
+Build: natpair bench/ctfix 0a24298, the release candidate bench/no-guard-15 7f3cc62 merged with the #18, #19 and #20
+stack, with #20's port count taken from #12's worker range (1024 to 60999, 59,976 ports). Tagged v0.1.99, tarball
+sha256 0abab4dc72aec21a9f7403bad3fde1416d5df38439c9e171debb6a29d50cdb28, module from the same commit, kernel 6.18.
+NATs c7g.large (3.8 GB usable), generators c7gn.large, receiver c7gn.xlarge. Jobs: [ctsize](jobs/ctsize.sh) sections
+`ports` and `fix`, with `ctnat.sh resizefix` for 1,048,576 (the same settings the build's bootstrap writes:
+`max_connections`, both hash tables at one bucket per entry, `ResendQueueSize`, 64-byte-an-entry socket and netlink
+buffers), then a conntrackd restart on each NAT, the standby first. 524,288 is the build's default, so it needed no
+change. The table was filled with [hold](hold) as before.
+
+## Copies, readiness and takeovers
+
+"Restart" restarts the standby's conntrackd, which asks the owner for the whole table. "Reboot" reboots the standby,
+as every self-update does. "Ready" is the time from the restart or reboot command to the standby's first health round
+with `"ready":true`. "Kept" is the new owner's table after `natpair maintenance` against the old owner's.
+
+| Size, held | Copy after restart | Ready | Copy after reboot | Ready | Handover, kept |
+| --- | --- | --- | --- | --- | --- |
+| 524,288, 498,078 | 498,080 of 498,097 in 8 s | 28 s | 498,082 of 498,077 by 73 s | 26 s | 11 s, 498,087 of 498,079 |
+| 1,048,576, 996,151 | 995,914 of 995,992 in 9 s | 10 s | 995,915 of 995,962 by 73 s | 28 s | 16 s, 995,931 of 995,922 |
+| Before the fixes, 524,288 | 72% | ready while short | | | 72% |
+| Before the fixes, 996,175 | 69% | not ready for 20 minutes | | | no handover |
+
+- **A full copy is now complete.** Every copy landed at 99.99% or more of the owner's table, against 69 to 80%
+  before on the same type. The small gaps are connections opened or closed while the count was read. The standby's
+  conntrackd counted 4,854 lost messages while the 996k fill arrived at 20,000 connections a second, and its copy
+  still matched the owner's afterwards, so the resends now cover what the burst drops.
+- **The standby is ready within half a minute, at 1M too.** Ready follows the copy by up to 20 s because the pass
+  that confirms the owner's oldest connections waits up to 15 s after a copy is emptied. Before, at 996,175 entries,
+  the standby stayed not ready for over 20 minutes.
+- **Planned maintenance hands over at 1M, and takeovers keep every connection.** Both handovers kept the whole table,
+  and the new standby's copy of the new owner was 99.98% or more within 25 s.
+
+## Memory
+
+From `/proc/meminfo` and each daemon's resident set (job snapshots, and once a second during each copy and
+takeover). The owner started at 3,515 MB available.
+
+| Size, held | natpair, owner and standby (high) | Owner: available, kernel slab, conntrackd | Standby conntrackd | After the takeover |
+| --- | --- | --- | --- | --- |
+| 524,288, 498,078 | 20 and 19 MB (21) | 3,043 MB, +187 MB, 292 MB | 261 MB | new owner 2,630 MB available, conntrackd 542 MB |
+| 1,048,576, 996,151 | 20 and 20 MB (21) | 2,396 MB, +359 MB, 605 MB | 520 MB | new owner 1,264 MB available, conntrackd 1,089 MB |
+
+- **natpair's memory no longer grows with the table.** It stayed at 18 to 21 MB at every size and through every
+  copy and takeover, against 194 to 601 MB before.
+- **The owner costs about 1 KB a connection** (0.95 KB at 512k, 1.1 KB at 1M once settled): 0.37 KB of kernel slab,
+  0.55 KB in conntrackd and buffers. Before, 1.9 KB.
+- **The peak is now right after a takeover**, when conntrackd holds both its own table and the copy and keeps the
+  memory: about 1.8 KB a connection at 512k and 2.3 KB at 1M. 1,048,576 on the 3.8 GB NAT left 1.26 GB available,
+  above the "under half of memory" rule but stable. The rule with 2.3 KB still gives 524,288 for 4 GiB and 1,048,576
+  for 8 GiB.
+- conntrackd itself still takes seconds to write a whole cache (`conntrackd -i` 1.9 to 2.0 s at 498k, 3.5 to 4.2 s at
+  996k), but natpair now does that outside its health rounds, once a minute, with a 2-minute limit.
+
+## Hash buckets
+
+20 s of TCP, 16 flows from each generator, with the kernel's `nf_conntrack_buckets` at one per entry and at a quarter,
+switched on the running NATs, alternating, two rounds each. c7g.large is held by AWS's bandwidth allowance (about
+10.9 Gbps, `bw_out_allowance_exceeded` 1,400 to 2,600 a second in every run), so CPU per packet is the measure.
+
+| Size, held | One bucket per entry, ns a packet | A quarter, ns a packet |
+| --- | --- | --- |
+| 524,288, 498,078 | 1,523 and 1,679 | 1,524 and 1,660 |
+| 1,048,576, 996,151 | 2,018 and 1,576 | 1,542 and 1,889 |
+
+No measurable difference: the spread between rounds is larger than any effect. Against the sizing round's 1,962 ns at
+512k, CPU per packet is about 15% lower, which matches natpair no longer parsing dumps every round. The extra buckets
+cost about 15 MB at 524,288. A c7gn.large, where the CPUs rather than the allowance limit TCP, wasn't tested.
+
+## Shared-port warning
+
+[ctsize](jobs/ctsize.sh) `ports` held 45,000 idle connections from the 8 generator addresses to one receiver port,
+75% of the 59,976 ports the shared address offers a destination. Within a minute the owner logged
+`worker connections to one destination use most of the shared address's ports for it ...` with
+`"destination":"tcp <receiver>:7000","connections":45000,"ports":59976,"percent":75`, and its health rounds reported
+`"shared_ports_used":0.7503001200480192` while the connections were held. Two minutes later, after they were reset, it
+logged `worker connections to a destination are back under 70% of the shared address's ports` once, and the share went
+back to 0.00003. The standby, which doesn't count, reported 0. The first attempt held nothing because that version of
+the section didn't install iptables on the generators, whose kernels then reset the handshakes.
+
+## Cost and status
+
+Deployed 22:50 UTC, jobs 22:55 to 23:31. Results came back, but my session then stalled for about 8 hours before
+the teardown: the generators and receiver stopped themselves after 4 hours (`auto_stop_minutes`), while the NATs ran
+until the destroy at 08:00 to 08:01 UTC on 2026-11-17. About $3.60 in all: NATs 9.1 h at $0.145 an hour ($1.32),
+generators and receiver 4 h at $0.50 ($2.00), public addresses, volumes, S3, DynamoDB and Lambda about $0.26. Without
+the stall it would have been about $1.10.
+
+Destroyed (72 resources) and verified empty with direct describe calls in the sandbox account: no bench instances,
+Elastic IPs, natpair network interfaces, bench VPCs, peering, bucket, DynamoDB tables, Lambda functions or IAM roles
+and profiles. Only an unrelated instance and its volume remain. `tf/natpair.tf` points at
+`natpair.worktrees/bench-ctfix`.
+
+Not covered: c7gn.large, churn near a full table with these builds, a failure takeover (not planned maintenance) at
+1M, and 2,097,152, which the memory rule already rules out on 4 GiB.
