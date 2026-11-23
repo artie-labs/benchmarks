@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: kafka
@@ -9,6 +9,65 @@ spec:
   replicas: 3
   roles:
     - broker
+  resources:
+    requests:
+      cpu: "1"
+      memory: 6Gi
+    limits:
+      memory: 6Gi
+  template:
+    pod:
+      metadata:
+        annotations:
+          ad.datadoghq.com/kafka.checks: |
+            {
+              "kafka": {
+                "init_config": {
+                  "is_jmx": true,
+                  "collect_default_metrics": false,
+                  "new_gc_metrics": false
+                },
+                "instances":[
+                  {
+                    "host": "%%host%%",
+                    "port": "9999",
+                    "name": "kafka_broker",
+                    "conf": [
+                      {
+                        "include": {
+                          "bean": "kafka.server:type=ReplicaManager,name=PartitionCount"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: kafka
+          effect: NoSchedule
+      affinity:
+        # Prefer the Kafka nodes, but still schedule elsewhere if they aren't there.
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - kafka
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    strimzi.io/cluster: artie-kafka
+                    strimzi.io/pool-name: kafka
   storage:
     type: jbod
     volumes:

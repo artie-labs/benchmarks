@@ -1,28 +1,17 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: Kafka
 metadata:
   name: artie-kafka
   namespace: kafka
-  annotations:
-    strimzi.io/node-pools: enabled
-    strimzi.io/kraft: enabled
 spec:
-  # spec.entityOperator is required for Strimzi 0.44.0+, this is required for the User Operator to work.
+  # Needed for the User Operator, which manages the KafkaUser in user_operator.yaml.
   entityOperator:
     topicOperator: {}
     userOperator: {}
   kafka:
-    version: 3.9.0
-    resources:
-      requests:
-        memory: "1Gi"
+    version: 4.3.1
+    metadataVersion: 4.3-IV0
     listeners:
-      - name: external
-        port: 9094
-        type: loadbalancer
-        tls: false
-        authentication:
-          type: scram-sha-512
       - name: internal
         port: 9093
         type: internal
@@ -40,59 +29,10 @@ spec:
       min.insync.replicas: 2
       allow.everyone.if.no.acl.found: false
       delete.topic.enable: true
-      # usually 14 days (1209600000ms), but since we're benchmarking, we don't need to keep logs for too long
-      log.retention.ms: 3600000
+      log.retention.hours: 24
       message.max.bytes: 15728640
-      offsets.retention.minutes: 60
-    # Empty [jmxOptions] will open up a headless JMX service on port 9999 that allows every pod in the K8s cluster to connect.
+      # offsets.retention.minutes is left at the 7-day default, so a stopped consumer keeps its position.
     jmxOptions: {}
-    template:
-      pod:
-        metadata:
-          annotations:
-            ad.datadoghq.com/kafka.checks: |
-              {
-                "kafka": {
-                  "init_config": {
-                    "is_jmx": true,
-                    "collect_default_metrics": false,
-                    "new_gc_metrics": false
-                  },
-                  "instances":[
-                    {
-                      "host": "%%host%%",
-                      "port": "9999",
-                      "name": "kafka_broker",
-                      "conf": [
-                        {
-                          "include": {
-                            "bean": "kafka.controller:type=KafkaController,name=GlobalTopicCount"
-                          }
-                        },
-                        {
-                          "include": {
-                            "bean": "kafka.controller:type=KafkaController,name=GlobalPartitionCount"
-                          }
-                        },
-                        {
-                          "include": {
-                            "bean": "kafka.server:type=ReplicaManager,name=PartitionCount"
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "kafka_consumer": {
-                  "init_config": {},
-                  "instances": [
-                    {
-                      "kafka_connect_str": "%%host%%:9092",
-                      "monitor_unlisted_consumer_groups": "true"
-                    }
-                  ]
-                }
-              }
   kafkaExporter:
     groupRegex: ".*"
     topicRegex: ".*"

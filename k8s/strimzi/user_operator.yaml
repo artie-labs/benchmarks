@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaUser
 metadata:
   name: artie
@@ -35,6 +35,8 @@ spec:
         operations:
           - Create
           - Alter
+          - AlterConfigs
+          - DescribeConfigs
         host: "*"
       - resource:
           type: group

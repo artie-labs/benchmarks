@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1
 kind: KafkaNodePool
 metadata:
   name: controller
@@ -9,6 +9,74 @@ spec:
   replicas: 3
   roles:
     - controller
+  resources:
+    requests:
+      cpu: 250m
+      memory: 2Gi
+    limits:
+      memory: 3Gi
+  template:
+    pod:
+      metadata:
+        annotations:
+          ad.datadoghq.com/kafka.checks: |
+            {
+              "kafka": {
+                "init_config": {
+                  "is_jmx": true,
+                  "collect_default_metrics": false,
+                  "new_gc_metrics": false
+                },
+                "instances":[
+                  {
+                    "host": "%%host%%",
+                    "port": "9999",
+                    "name": "kafka_controller",
+                    "conf": [
+                      {
+                        "include": {
+                          "bean": "kafka.controller:type=KafkaController,name=GlobalTopicCount"
+                        }
+                      },
+                      {
+                        "include": {
+                          "bean": "kafka.controller:type=KafkaController,name=GlobalPartitionCount"
+                        }
+                      },
+                      {
+                        "include": {
+                          "bean": "kafka.controller:type=KafkaController,name=ActiveControllerCount"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+      tolerations:
+        - key: workload
+          operator: Equal
+          value: kafka
+          effect: NoSchedule
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - kafka
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    strimzi.io/cluster: artie-kafka
+                    strimzi.io/pool-name: controller
   storage:
     type: jbod
     volumes:
