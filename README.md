@@ -184,7 +184,8 @@ CREATE OR REPLACE PIPE benchmark_dms_pipe_full_load
         SYSDATE()
         FROM @benchmark_dms_stage_full_load
     )
-    FILE_FORMAT = (TYPE = 'PARQUET');
+    FILE_FORMAT = (TYPE = 'PARQUET')
+    PATTERN = '.*public/pgbench_accounts/.*[.]parquet';
 ```
 
 ### 2. Create the replication task
@@ -299,9 +300,11 @@ CREATE OR REPLACE PIPE benchmark_dms_pipe
         SYSDATE()
         FROM @benchmark_dms_stage
     )
-    FILE_FORMAT = (TYPE = 'PARQUET');
+    FILE_FORMAT = (TYPE = 'PARQUET')
+    PATTERN = '.*public/pgbench_accounts/.*[.]parquet';
 ```
 
+`PATTERN` limits the pipe to the table's data files. During CDC, DMS also writes `awsdms_status/`, `awsdms_history/` and `awsdms_suspended_tables/` files under the same prefix. Without the pattern, Snowpipe tries to load each of them, fails on the non-null `AID` column, and still counts the attempt toward DMS's Snowpipe cost.
 
 Create a stream from the history table.
 
