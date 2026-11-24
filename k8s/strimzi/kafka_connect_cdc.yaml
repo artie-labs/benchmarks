@@ -1,0 +1,94 @@
+# The CDC connectors: Debezium streams pgbench_accounts changes to Kafka, and the Snowflake connector appends them to
+# DEBEZIUM_HISTORY. They run on the worker from kafka_connect_snapshot.yaml.
+#
+# run/bench.sh builds every connector from this file:
+# - CDC runs: both connectors as they are, except the source gets a new name each run, so it starts without stored
+#   offsets.
+# - Snapshots: the same connectors with overrides (step_snapshot_debezium): initial_only with 10 threads, its own slot
+#   and topic, an 8-task sink into DEBEZIUM_FULL_LOAD.
+# It deletes them after each run. The bench=debezium label lets it delete connectors applied by hand too, so they
+# can't hold the debezium slot during a run. The sink must read exactly one topic.
+# To run CDC by hand: make kafka_connect_cdc, after bench.sh pg_init, which creates dbz_publication.
+# https://debezium.io/documentation/reference/3.7/connectors/postgresql.html
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnector
+metadata:
+  name: postgres-source-connector
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: connect
+    bench: debezium
+spec:
+  class: io.debezium.connector.postgresql.PostgresConnector
+  # The Postgres connector only ever runs one task.
+  tasksMax: 1
+  autoRestart:
+    enabled: true
+  config:
+    database.hostname: "${file:/mnt/postgres-config/postgres.properties:hostname}"
+    database.port: 5432
+    database.dbname: postgres
+    database.user: "${file:/mnt/postgres-config/postgres.properties:username}"
+    database.password: "${file:/mnt/postgres-config/postgres.properties:password}"
+    database.sslmode: require
+    topic.prefix: dbserver1
+    table.include.list: public.pgbench_accounts
+    plugin.name: pgoutput
+    slot.name: debezium
+    # bench.sh pg_init creates dbz_publication FOR TABLE public.pgbench_accounts (Artie uses it too). Fail rather than
+    # create a FOR ALL TABLES publication if it's missing.
+    publication.name: dbz_publication
+    publication.autocreate.mode: disabled
+    # Stream from the slot's creation point. The default (initial) would first snapshot all 100M rows before
+    # streaming anything.
+    snapshot.mode: no_data
+    max.batch.size: 2048
+    max.queue.size: 8192
+    # Flatten each change event to the row (aid, bid, abalance, filler) plus __op, __lsn and __source_ts_ms, so the
+    # Snowflake table gets one column per field and the latency queries can read FILLER. A delete becomes a row with
+    # __op = d and __deleted = true, and no tombstone is sent.
+    transforms: unwrap
+    transforms.unwrap.type: io.debezium.transforms.ExtractNewRecordState
+    transforms.unwrap.add.fields: op,lsn,source.ts_ms
+    transforms.unwrap.delete.tombstone.handling.mode: rewrite
+---
+# Snowflake connector v4: Snowpipe Streaming (high-performance architecture), append-only.
+# https://docs.snowflake.com/en/user-guide/kafka-connector/setup-kafka
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnector
+metadata:
+  # The same name bench.sh uses, so the Kafka consumer offsets and Snowflake channel offsets carry over between
+  # manual and bench.sh runs.
+  name: snowflake-cdc
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: connect
+    bench: debezium
+spec:
+  class: com.snowflake.kafka.connector.SnowflakeStreamingSinkConnector
+  # The CDC topic has one partition, so more tasks would sit idle.
+  tasksMax: 1
+  autoRestart:
+    enabled: true
+  config:
+    topics: dbserver1.public.pgbench_accounts
+    # Created by the connector on first write. run/sql/setup.sql turns on ROW_TIMESTAMP_DEFAULT for the schema first,
+    # so the table gets METADATA$ROW_LAST_COMMIT_TIME like the other tools' tables.
+    snowflake.topic2table.map: "dbserver1.public.pgbench_accounts:DEBEZIUM_HISTORY"
+    snowflake.url.name: "${file:/mnt/snowflake-config/snowflake.properties:account}.${file:/mnt/snowflake-config/snowflake.properties:region}.snowflakecomputing.com:443"
+    snowflake.user.name: "${file:/mnt/snowflake-config/snowflake.properties:username}"
+    snowflake.private.key: "${file:/mnt/snowflake-config/snowflake.properties:private_key}"
+    snowflake.private.key.passphrase: "${file:/mnt/snowflake-config/snowflake.properties:private_key_passphrase}"
+    snowflake.database.name: "${file:/mnt/snowflake-config/snowflake.properties:database}"
+    snowflake.schema.name: "${file:/mnt/snowflake-config/snowflake.properties:schema}"
+    snowflake.role.name: "${file:/mnt/snowflake-config/snowflake.properties:role}"
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+    # One column per field (the v4 default, set explicitly). Upper-case the column names, so Debezium's aid and filler
+    # become AID and FILLER, as in the other tools' tables.
+    snowflake.enable.schematization: true
+    snowflake.compatibility.enable.column.identifier.normalization: true
+    # A new install, not a migration from v3: skip the check for configs copied from the classic connector.
+    snowflake.streaming.validate.compatibility.with.classic: false

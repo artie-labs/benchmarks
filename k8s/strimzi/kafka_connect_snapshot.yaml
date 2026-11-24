@@ -1,0 +1,120 @@
+# Kafka Connect running Debezium (Postgres source) and the Snowflake connector v4 (Snowpipe Streaming sink), sized for
+# the 100M-row snapshot. Requires Strimzi 1.x, which serves only kafka.strimzi.io/v1.
+#
+# This is the worker only. The connectors are in kafka_connect_cdc.yaml, which run/bench.sh builds each snapshot and
+# CDC run's connectors from. bench.sh resizes the worker to DBZ_CDC_* for CDC runs.
+#
+# Strimzi builds the image from spec.build and pushes it to spec.build.output.image, using the dockerhub-credentials
+# docker-registry secret in the kafka namespace (Docker Hub credentials with push access to artielabs).
+# https://strimzi.io/docs/operators/latest/deploying#creating-new-image-using-kafka-connect-build-str
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaConnect
+metadata:
+  name: connect
+  namespace: kafka
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  # Must be a version the operator supports (Strimzi 1.3.1: 4.2.0 to 4.3.2). Matches the brokers.
+  # Debezium 3.7.1 is built against Connect 4.3.1. Snowflake connector 4.4.0 is built against the Connect API 3.9 and
+  # Snowflake only says later versions are "untested". Its jar bundles kafka-clients 3.9.2, but Connect loads
+  # org.apache.kafka.* from the runtime, not the plugin, so it runs on the 4.3.1 clients.
+  version: 4.3.1
+  replicas: 1
+  bootstrapServers: artie-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093
+  authentication:
+    type: scram-sha-512
+    username: artie
+    passwordSecret:
+      secretName: kafka-secret
+      password: KAFKA_SCRAM_PASSWORD
+  groupId: connect-cluster
+  configStorageTopic: connect-cluster-configs
+  offsetStorageTopic: connect-cluster-offsets
+  statusStorageTopic: connect-cluster-status
+  # Snapshot sizing, the same as the Artie snapshot pod: 4 CPUs requested, no CPU limit. bench.sh switches to
+  # 1 CPU, 3Gi and a 1536m heap for CDC runs (DBZ_CDC_* in run/.env).
+  resources:
+    requests:
+      cpu: "4"
+      memory: 8Gi
+    limits:
+      memory: 8Gi
+  # Snowflake recommends about 50% of memory for the heap: the Snowpipe Streaming SDK allocates off-heap.
+  jvmOptions:
+    -Xms: 4g
+    -Xmx: 4g
+  config:
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+    # Debezium keys are structs, so they need the JSON converter too.
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    # No schema in each message. With schemas on, every message would carry its full schema: roughly 4x the bytes,
+    # which for the 100M-row snapshot is more than the brokers' 100Gi disks. The Snowflake connector infers column
+    # types from the values instead (NUMBER for aid, bid and abalance, VARCHAR for filler).
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+    offset.flush.interval.ms: 10000
+    # Compress what Debezium writes to Kafka. filler is padded to 84 characters, so the snapshot compresses well.
+    producer.compression.type: zstd
+    producer.linger.ms: 10
+    producer.batch.size: 262144
+  build:
+    output:
+      type: docker
+      image: docker.io/artielabs/kafka-connect-snowflake:0.2.0
+      pushSecret: dockerhub-credentials
+    plugins:
+      - name: debezium-postgres-connector
+        artifacts:
+          - type: tgz
+            url: https://repo1.maven.org/maven2/io/debezium/debezium-connector-postgres/3.7.1.Final/debezium-connector-postgres-3.7.1.Final-plugin.tar.gz
+            sha512sum: d118c8eb994153c9cb687ee9071d09d07b5a03aafc03f5d898bd8ffa86ba801342be30723736f8d2803ae4a708a33295335f54d9f1af99d8c348461579a85868
+      - name: snowflake-connector
+        artifacts:
+          # The connector jar is a fat jar. Pulling it as type maven would also copy its compile dependencies
+          # (kafka-clients 3.9.2 among them) into the plugin directory, so each jar is fetched directly.
+          - type: jar
+            url: https://repo1.maven.org/maven2/com/snowflake/snowflake-kafka-connector/4.4.0/snowflake-kafka-connector-4.4.0.jar
+            sha512sum: 0a6996ae95656fc9243729b2dc6714686c64ded8c0c29423734054b2717259bc026d45be0cde91f5a9fd9aa51edcf929b29c39936e3ceb2ce95fbd9cfee57fba
+          # Bouncy Castle FIPS, needed to read the encrypted private key. The connector declares bcpkix-fips 2.1.12
+          # as provided; bcpkix-fips needs bcutil-fips [2.1.7,2.2.0) and bc-fips [2.1.0,2.2.0).
+          - type: jar
+            url: https://repo1.maven.org/maven2/org/bouncycastle/bc-fips/2.1.2/bc-fips-2.1.2.jar
+            sha512sum: c20da957f38fc09b7fc6def8afe9c9f4137a8de56d8d602719be6e1eb7ea0d2dface092bdf0a16d2a178eb57078553e53db60fbbcda166038cddb0a22087f69b
+          - type: jar
+            url: https://repo1.maven.org/maven2/org/bouncycastle/bcutil-fips/2.1.8/bcutil-fips-2.1.8.jar
+            sha512sum: 1a0955460fe1a3f926c2081a93410543a3f4913742816a1dcd85609b3281d79baddf3984cbeac609cdd2b1efc61695c4c392e955a669db2824dafd572e9dfbd5
+          - type: jar
+            url: https://repo1.maven.org/maven2/org/bouncycastle/bcpkix-fips/2.1.12/bcpkix-fips-2.1.12.jar
+            sha512sum: 7da951cd570b6bf1b66c398c2de52623f162ff8ce57cf82e5f7e3f31e332809e242aa7f94a8f79a8406cdec38b3365c6458c11a489f32fb1c310a5610659a3fa
+  template:
+    pod:
+      # /tmp is a memory-backed emptyDir, 5Mi by default. The connectors unpack native libraries into it when their tasks
+      # start: the Snowflake connector's Snowpipe Streaming SDK (libcyclone_shared.so, 29 MB) plus its JDBC driver's
+      # (about 5 MB), and Kafka's zstd (1 MB). At 5Mi both tasks failed with "No space left on device". It counts against
+      # the pod's memory limit.
+      tmpDirSizeLimit: 256Mi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - kafka-connect
+      volumes:
+        - name: postgres-config
+          secret:
+            secretName: postgres-credentials
+        - name: snowflake-config
+          secret:
+            secretName: snowflake-credentials
+    connectContainer:
+      volumeMounts:
+        - name: postgres-config
+          mountPath: /mnt/postgres-config
+        - name: snowflake-config
+          mountPath: /mnt/snowflake-config
