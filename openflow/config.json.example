@@ -1,0 +1,188 @@
+{
+  "configFormatVersion": 1,
+  "connectorDefinitionId": "OPENFLOW_POSTGRES_CDC",
+  "configuration": [
+    {
+      "name": "Source",
+      "properties": {
+        "Configure Logical Keys": {
+          "valueType": "STRING_LITERAL",
+          "value": "default_primary_key_support"
+        },
+        "Source Database Publication Name": {
+          "valueType": "STRING_LITERAL",
+          "value": "openflow_pub"
+        },
+        "Source Database Driver": {
+          "valueType": "ASSET_REFERENCE",
+          "assetIds": [
+            "postgresql-42.7.15.jar"
+          ]
+        },
+        "Source Database Password": {
+          "valueType": "SECRET_REFERENCE",
+          "fullyQualifiedSecretName": "<SF_DB>.OPENFLOW.PG_PASSWORD"
+        },
+        "Source Database Connection URL": {
+          "valueType": "STRING_LITERAL",
+          "value": "jdbc:postgresql://<openflow_pg_host>:5432/postgres?sslmode=require"
+        },
+        "Source Database User": {
+          "valueType": "STRING_LITERAL",
+          "value": "dbuser"
+        }
+      }
+    },
+    {
+      "name": "Replication table schema",
+      "properties": {
+        "Included Comma Separated Source Table Names": {
+          "valueType": "STRING_LITERAL",
+          "value": "public.pgbench_accounts"
+        },
+        "Included Source Table Pattern": {
+          "valueType": "STRING_LITERAL"
+        }
+      }
+    },
+    {
+      "name": "Replication columns",
+      "properties": {
+        "Column Filter JSON": {
+          "valueType": "STRING_LITERAL",
+          "value": "[]"
+        }
+      }
+    },
+    {
+      "name": "Logical key configuration",
+      "properties": {
+        "Table Key Configuration JSON": {
+          "valueType": "STRING_LITERAL",
+          "value": "[]"
+        }
+      }
+    },
+    {
+      "name": "Destination authentication",
+      "properties": {
+        "Snowflake Authentication Strategy": {
+          "valueType": "STRING_LITERAL",
+          "value": "SNOWFLAKE_MANAGED"
+        },
+        "Snowflake Connection Strategy": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Snowflake Role": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Snowflake Private Key": {
+          "valueType": "SECRET_REFERENCE"
+        },
+        "Snowflake Username": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Snowflake Account Identifier": {
+          "valueType": "STRING_LITERAL"
+        }
+      }
+    },
+    {
+      "name": "Destination details",
+      "properties": {
+        "Destination Schema Suffix": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Legacy Format Support": {
+          "valueType": "STRING_LITERAL",
+          "value": "STANDARD"
+        },
+        "Table Storage Format": {
+          "valueType": "STRING_LITERAL",
+          "value": "STANDARD"
+        },
+        "Error Handling Strategy": {
+          "valueType": "STRING_LITERAL",
+          "value": "Log Errors and Continue"
+        },
+        "Object Identifier Resolution": {
+          "valueType": "STRING_LITERAL",
+          "value": "CASE_INSENSITIVE"
+        },
+        "Snowflake Destination Database": {
+          "valueType": "STRING_LITERAL",
+          "value": "<OF_DB>"
+        },
+        "Destination Schema Strategy": {
+          "valueType": "STRING_LITERAL",
+          "value": "SOURCE_SCHEMA"
+        },
+        "Destination Schema Pattern": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Snowflake Warehouse": {
+          "valueType": "STRING_LITERAL",
+          "value": "BENCHMARK_WH"
+        },
+        "Destination Schema Prefix": {
+          "valueType": "STRING_LITERAL"
+        },
+        "Oversized Value Strategy": {
+          "valueType": "STRING_LITERAL",
+          "value": "Set Null"
+        },
+        "Iceberg Version": {
+          "valueType": "STRING_LITERAL",
+          "value": "3"
+        }
+      }
+    },
+    {
+      "name": "Tuning",
+      "properties": {
+        "Concurrent Snapshot Queries": {
+          "valueType": "STRING_LITERAL",
+          "value": "2"
+        },
+        "Merge Strategy": {
+          "valueType": "STRING_LITERAL",
+          "value": "BASE"
+        },
+        "Enable Advanced Configuration": {
+          "valueType": "STRING_LITERAL",
+          "value": "false"
+        },
+        "Merge Task Schedule CRON": {
+          "valueType": "STRING_LITERAL",
+          "value": "0 * * * * ?"
+        }
+      }
+    },
+    {
+      "name": "Advanced configuration",
+      "properties": {
+        "Source Read Timeout": {
+          "valueType": "STRING_LITERAL",
+          "value": "30"
+        },
+        "Source Connect Timeout": {
+          "valueType": "STRING_LITERAL",
+          "value": "10"
+        }
+      }
+    },
+    {
+      "name": "Migration",
+      "properties": {
+        "Replication Slot Name": {
+          "valueType": "STRING_LITERAL",
+          "value": "openflow"
+        },
+        "Ingestion Type": {
+          "valueType": "STRING_LITERAL",
+          "value": "full"
+        }
+      }
+    }
+  ]
+}
