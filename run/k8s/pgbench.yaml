@@ -1,0 +1,28 @@
+# Load generator and psql client for the benchmark. It runs in the benchmark's EKS cluster, so it can reach the
+# private RDS instance. bench.sh creates the pgbench-credentials Secret and pgbench-scripts ConfigMap it mounts.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pgbench
+  labels:
+    app: pgbench
+spec:
+  restartPolicy: Never
+  containers:
+    - name: pgbench
+      image: postgres:18
+      command: ["sleep", "infinity"]
+      envFrom:
+        - secretRef:
+            name: pgbench-credentials
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+      volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+  volumes:
+    - name: scripts
+      configMap:
+        name: pgbench-scripts
