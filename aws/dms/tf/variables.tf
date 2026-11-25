@@ -52,3 +52,15 @@ variable "resource_prefix" {
   type        = string
   default     = "benchmark-dms"
 }
+
+variable "openflow_public_access" {
+  description = "Create the internet-facing NLB in openflow.tf so Openflow on a Snowflake deployment (SPCS) can reach RDS."
+  type        = bool
+  default     = false
+}
+
+variable "snowflake_egress_cidrs" {
+  description = "CIDRs allowed through the Openflow NLB: the account's egress ranges from SELECT SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()."
+  type        = list(string)
+  default     = []
+}
