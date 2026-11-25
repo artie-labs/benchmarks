@@ -1,4 +1,5 @@
--- Snapshot duration: from t0 (when the task or pod was started) to the last row committed in Snowflake.
+-- Snapshot duration: from t0 (when the tool's task, connector or pod was started) to the last row committed in
+-- Snowflake.
 -- Variables: table, t0 (ISO 8601 UTC).
 SELECT
   COUNT(*) AS ROWS_LOADED,

@@ -1,4 +1,4 @@
--- What ran on each tool's warehouse during a run: Transfer's merges and appends, or the DMS or Debezium merge task.
+-- What ran on each tool's warehouse during a run: its merges, and its loads for tools that load with COPY.
 -- Variables: start, end (ISO 8601 UTC). bench.sh fills in the @fill line with the warehouses of the tools in TOOLS.
 SELECT
   WAREHOUSE_NAME,

@@ -50,11 +50,12 @@ OF_ROLE="${OF_ROLE:-OPENFLOW_ADMIN}"
 OF_CONNECTOR="${OF_CONNECTOR:-$SF_DB.OPENFLOW.BENCHMARK_PG}"
 OF_RUNTIME="${OF_RUNTIME:-$SF_DB.OPENFLOW.BENCHMARK_RT}"
 OF_SLOT="${OF_SLOT:-openflow}"             # "Replication Slot Name" in openflow/config.json
-OF_CONFIG="$ROOT/openflow/config.json"     # downloaded from the connector (openflow/README.md); placeholders as in config.json.example are filled in by of_create
+# Downloaded from the connector (openflow/README.md). of_create fills in placeholders as in config.json.example.
+OF_CONFIG="$ROOT/openflow/config.json"
 OF_DRIVER="${OF_DRIVER:-}"                 # path to the PostgreSQL JDBC jar named in config.json's assetIds
 OF_DEST="$OF_DB.PUBLIC.PGBENCH_ACCOUNTS"
-# Compute pools whose credits `cost` adds (comma-separated): Openflow's runtime pool and its deployment's control pool,
-# from SHOW COMPUTE POOLS. Empty for the other tools.
+# Compute pools whose credits `cost` adds (comma-separated): Openflow's runtime pool and its deployment's control pool.
+# They don't show in SHOW COMPUTE POOLS; find them in ACCOUNT_USAGE.METERING_HISTORY. Empty for the other tools.
 OF_POOLS="${OF_POOLS:-}"
 MEASURE_WH="${MEASURE_WH:-COMPUTE_WH}"   # runs bench.sh's own queries, so they don't count as any tool's cost
 INIT_SCALE="${INIT_SCALE:-1000}"   # 100M rows in pgbench_accounts
@@ -105,7 +106,7 @@ psql_pod() { kn exec pgbench -- psql -v ON_ERROR_STOP=1 -At "$@"; }
 tf_out() { terraform -chdir="$TF_DIR" output -raw "$1"; }
 rds_host() { local e; e="$(tf_out rds_endpoint)"; echo "${e%:*}"; }
 
-# Every Snowflake query from this script runs on MEASURE_WH, so none of it is billed to either tool's warehouse.
+# Every Snowflake query from this script runs on MEASURE_WH, so none of it is billed to any tool's warehouse.
 sf() { snow sql -c "$SNOW_CONNECTION" --warehouse "$MEASURE_WH" --database "$SF_DB" --schema "$SF_SCHEMA" "$@"; }
 sf_json() { sf --format json "$@"; }
 # First column of the first row of the last statement.
@@ -829,7 +830,7 @@ merge_tasks_suspend() {
   return 0
 }
 
-# Kafka consumer groups whose lag is sampled: both Transfers and the Snowflake connector, for the tools in TOOLS.
+# Kafka consumer groups whose lag is sampled: the Snowflake connector's, and any plugin tool's (its lag_groups hook).
 lag_groups() {
   plugin lag_groups
   if uses debezium; then
@@ -1220,7 +1221,8 @@ step_cdc_stop() {
 
 # Snowflake credits from ACCOUNT_USAGE, one row per clock hour (see run/sql/cost.sql). Metering lags up to 3 hours, so this
 # runs separately and can be repeated; it warns while any hour may still change.
-# - <dir>/cost.csv for each CDC run and Debezium snapshot: the hours the run started and finished in, and those between.
+# - <dir>/cost.csv for each CDC run and each Debezium and Openflow snapshot: the hours the run started and finished in,
+#   and those between.
 #   Start runs on the hour so each run's hours are its own.
 # - cost_hourly.csv at the run root: every hour from the first run's start to the last run's end, for runs that share
 #   hours.

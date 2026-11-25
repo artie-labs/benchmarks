@@ -1,8 +1,9 @@
 # Public path to RDS for Openflow on a Snowflake deployment (SPCS). SPCS runs outside this VPC, and RDS sits in the
 # private subnets (default route via NAT), so flipping publicly_accessible on RDS wouldn't make it reachable, and
-# moving it to the public subnets would recreate it. Instead, an internet-facing NLB in the public subnet forwards
-# 5432 to RDS's private IP, and only Snowflake's egress CIDRs may connect. RDS, Reader, DMS and Debezium are
-# unchanged. Off by default; set openflow_public_access = true and snowflake_egress_cidrs to create it.
+# moving it to the public subnets would recreate it. Instead, an internet-facing NLB in the public subnets forwards
+# 5432 to RDS's private IP, and only Snowflake's egress CIDRs may connect. The NLB needs a public subnet in RDS's
+# availability zone, or the target stays unused. RDS and the tools that connect inside the VPC are unchanged.
+# Off by default; set openflow_public_access = true and snowflake_egress_cidrs to create it.
 
 locals {
   openflow = var.openflow_public_access ? 1 : 0
@@ -64,7 +65,7 @@ resource "aws_lb" "openflow" {
   security_groups    = [aws_security_group.openflow_nlb[0].id]
 }
 
-# Client IP preservation is off, so RDS sees the NLB's private IP in the public subnet, which rds_sg already allows.
+# Client IP preservation is off, so RDS sees the NLB's private IPs in the public subnets, which rds_sg already allows.
 resource "aws_lb_target_group" "openflow" {
   count                  = local.openflow
   name                   = "${var.resource_prefix}-openflow-pg"

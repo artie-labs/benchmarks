@@ -1,6 +1,6 @@
--- Drops and recreates the benchmark schema. Each tool's warehouse and objects come from setup_<tool>.sql, which
--- bench.sh runs afterwards for the tools in TOOLS (plugin tools use their sf_setup hook). Some tools create their own
--- tables.
+-- Drops and recreates the benchmark schema. bench.sh then creates the objects of the tools in TOOLS: setup_dms.sql and
+-- setup_debezium.sql, and plugin tools' sf_setup hooks. Some tools create their own tables. Openflow writes to its own
+-- database, so it's not affected.
 -- Variables: db, schema.
 
 DROP SCHEMA IF EXISTS <% db %>.<% schema %> CASCADE;

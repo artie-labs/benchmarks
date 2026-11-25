@@ -11,7 +11,7 @@ resource "aws_security_group" "rds_sg" {
   vpc_id = var.vpc_id
 }
 
-# DB subnet group so RDS is placed in aws_vpc.main's private subnets (not default VPC)
+# DB subnet group so RDS is placed in the private subnets (private_subnet_ids), not the default VPC
 resource "aws_db_subnet_group" "benchmark" {
   name        = "benchmark-db-subnet-group"
   description = "Subnet group for benchmark RDS in customer sandbox VPC"

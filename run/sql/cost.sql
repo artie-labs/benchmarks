@@ -1,14 +1,13 @@
 -- Snowflake credits for a run, one row per clock hour, from ACCOUNT_USAGE:
--- - warehouse: the tools' warehouses (Transfer's loads and merges, the DMS and Debezium merge tasks)
+-- - warehouse: the tools' warehouses (their merges, and loads for tools that load with COPY)
 -- - pipe: classic Snowpipe (DMS)
--- - snowpipe_streaming: Snowpipe Streaming (the Snowflake Kafka connector, Transfer with streaming: true, and Openflow's
---   journal)
+-- - snowpipe_streaming: Snowpipe Streaming (the Snowflake Kafka connector, Openflow, and any other tool that uses it)
 -- - compute pools named in `pools` (Openflow's runtime and its deployment's control pool), under whatever SERVICE_TYPE
 --   they're metered as. These aren't tied to a schema, so they're matched by name.
 --
 -- Metering is hourly, so the window is widened to whole hours: from the hour the run started to the end of the hour
--- it finished in. Start each run on the hour (bench.sh's drivers do) and finish it within the hour, and its hours are
--- its own. Two runs in the same hour both get that hour's full credits.
+-- it finished in. Start each run on the hour (bench.sh doesn't; schedule it) and finish it within the hour, and its
+-- hours are its own. Two runs in the same hour both get that hour's full credits.
 --
 -- ACCOUNT_USAGE lags up to 3 hours. STATUS says whether an hour ended at least 3 hours ago; a missing or "may change"
 -- hour means rerun `bench.sh cost` later. Streaming pipes also appear under PIPE with 0 credits, so summing both service
