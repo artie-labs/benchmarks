@@ -1,6 +1,6 @@
 # Debezium + Kafka Connect into Snowflake
 
-Snapshot time, replication latency and cost of the open-source path into Snowflake: Debezium reads Postgres, Kafka carries the changes, and the Snowflake connector writes them through Snowpipe Streaming. It runs the same 100M-row `pgbench_accounts` workload as the [Artie vs AWS DMS benchmark](../README.md), so the results compare directly with that run.
+Snapshot time, replication latency and cost of the open-source path into Snowflake: Debezium reads Postgres, Kafka carries the changes, and the Snowflake connector writes them through Snowpipe Streaming. It runs the same 100M-row `pgbench_accounts` workload as the [Artie vs AWS DMS benchmark](../dms/README.md) and the [Snowflake Openflow benchmark](../openflow/README.md), so the results compare directly.
 
 Continuous replication:
 
@@ -52,7 +52,7 @@ flowchart LR
 
 ## Results
 
-Run on 2026-11-23/24 with `TOOLS=debezium`. Raw data is in [`data/runs/2026-11-23-debezium`](../data/runs/2026-11-23-debezium). Artie and DMS ran the same workload on 2026-11-23 ([`data/runs/2026-11-23-artie-4cpu`](../data/runs/2026-11-23-artie-4cpu)). Latency is measured as in the top-level README: the commit time pgbench writes into `FILLER` against `METADATA$ROW_LAST_COMMIT_TIME` in Snowflake.
+Run on 2026-11-23/24 with `TOOLS=debezium`. Raw data is in [`data/runs/2026-11-23-debezium`](../data/runs/2026-11-23-debezium). Artie and DMS ran the same workload on 2026-11-23 ([`data/runs/2026-11-23-artie-4cpu`](../data/runs/2026-11-23-artie-4cpu)). Latency is measured as in the [DMS benchmark](../dms/README.md#results): the commit time pgbench writes into `FILLER` against `METADATA$ROW_LAST_COMMIT_TIME` in Snowflake.
 
 ### Snapshot (100M rows, 3 rounds)
 
@@ -368,7 +368,7 @@ SELECT * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY(TASK_NAME => 'DEBEZIUM_MERGE
 
 ### 4. Generate load and measure
 
-`bench.sh cdc` does this: 3 runs of pgbench (`custom_tpcb.sql`, 50 clients, 8 threads, 600 s), each followed by catch-up and measurement. The latency queries are the ones in the top-level README's Results, run against `DEBEZIUM_HISTORY` and `DEBEZIUM_REPLICATION`.
+`bench.sh cdc` does this: 3 runs of pgbench (`custom_tpcb.sql`, 50 clients, 8 threads, 600 s), each followed by catch-up and measurement. The latency queries are the ones in the [DMS benchmark's Results](../dms/README.md#results), run against `DEBEZIUM_HISTORY` and `DEBEZIUM_REPLICATION`.
 
 The Snowflake connector's credits are in `SNOWFLAKE.ACCOUNT_USAGE.METERING_HISTORY` under `SERVICE_TYPE = 'SNOWPIPE_STREAMING'` ([`cost.sql`](../run/sql/cost.sql) reads both). The merge task's credits are in the warehouse metering.
 

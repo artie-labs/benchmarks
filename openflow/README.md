@@ -1,6 +1,6 @@
 # Snowflake Openflow into Snowflake
 
-Snapshot time, replication latency and cost of Snowflake's own CDC path. The Openflow Connector for PostgreSQL runs on an Openflow runtime inside Snowflake (Snowpark Container Services). It reads Postgres through a replication slot and writes through Snowpipe Streaming into a journal table, then MERGEs the journal into the destination table on a warehouse. It runs the same 100M-row `pgbench_accounts` workload as the [Artie vs AWS DMS benchmark](../README.md) and the [Debezium + Kafka Connect benchmark](../kafka-connect), so the results compare directly.
+Snapshot time, replication latency and cost of Snowflake's own CDC path. The Openflow Connector for PostgreSQL runs on an Openflow runtime inside Snowflake (Snowpark Container Services). It reads Postgres through a replication slot and writes through Snowpipe Streaming into a journal table, then MERGEs the journal into the destination table on a warehouse. It runs the same 100M-row `pgbench_accounts` workload as the [Artie vs AWS DMS benchmark](../dms/README.md) and the [Debezium + Kafka Connect benchmark](../kafka-connect/README.md), so the results compare directly.
 
 Continuous replication:
 
@@ -30,7 +30,7 @@ Snapshot (100M rows): the connector reads the table with keyset-paged `SELECT`s,
 | Openflow deployment | Snowflake deployment (SPCS), gen 2 | `CREATE OPENFLOW DEPLOYMENT`, below |
 | Openflow runtime | 1 MEDIUM node (min 1, max 1), runtime service version 2026.11.20.20 | `CREATE OPENFLOW RUNTIME`, below |
 | PostgreSQL connector | `OPENFLOW_POSTGRES_CDC` 1.0.0, PostgreSQL JDBC driver 42.7.15 | `SHOW OPENFLOW CONNECTOR DEFINITIONS` |
-| Connector settings | | [`openflow/config.json`](config.json) |
+| Connector settings | | `openflow/config.json`, downloaded from the connector (Setup (Connector) step 2). [`config.json.example`](config.json.example) is the one used here, with placeholders |
 | NLB in front of RDS | | [`aws/dms/tf/openflow.tf`](../aws/dms/tf/openflow.tf) |
 
 ## Results
@@ -70,7 +70,7 @@ For comparison, Debezium took 785 s on average and Artie 326 s, so Openflow was 
 - Every run's journal had exactly one row per transaction plus the warm-up row.
 - History latency stays between about 6 s and 23 s, with p50 close to the average: the journal fills at an even pace rather than in bursts.
 - Replication is the journal latency plus the merge: a 1-minute schedule, then a MERGE of 7–9 s into the 100M-row table. Debezium's merge task ran the same schedule with 3-second merges.
-- For comparison (from the [Debezium page](../kafka-connect)): Debezium on its own averaged 6.0 s history and 33.2 s replication; Artie 7–8 s and 31–38 s.
+- For comparison (from the [Debezium page](../kafka-connect/README.md)): Debezium on its own averaged 6.0 s history and 33.2 s replication; Artie 7–8 s and 31–38 s.
 
 ### Snowflake cost
 
@@ -311,11 +311,13 @@ It starts as a stopped draft.
 
 ### 2. Configure it
 
+Download the connector's `config.json` into `openflow/` (gitignored, since it ends up with your hostnames):
+
 ```sql
-GET 'snow://openflow_connector/<SF_DB>.OPENFLOW.BENCHMARK_PG/versions/LAST/config.json' file:///<repo>/openflow/;
+GET 'snow://openflow_connector/<SF_DB>.OPENFLOW.BENCHMARK_PG/versions/live/config.json' file:///<repo>/openflow/;
 ```
 
-Set these in `config.json`. The names below are the setup wizard's labels; check them against the keys in the file you downloaded.
+The connector generates it with its defaults when it's created. Set the values below in it. [`config.json.example`](config.json.example) is the file used on 2026-11-25, with `<openflow_pg_host>`, `<SF_DB>` and `<OF_DB>` in place of the real values. Use it as a reference rather than uploading it as is, since a newer connector version may generate different keys.
 
 | Setting | Value | Why |
 | --- | --- | --- |
@@ -345,7 +347,7 @@ Everything else stays at the defaults the connector generates. The keys in the g
   ```
 - **Openflow UI:** Installed Connectors → the connector → Edit → Source step → upload the jar, then apply. The UI refuses `ACCOUNTADMIN`, and its login signs in with the user's **default** role, whatever role is selected in Snowsight. Log in as a user whose default role is `OPENFLOW_ADMIN`. On 2026-11-25 that meant creating a new user, with MFA, for the purpose.
 
-Commit `openflow/config.json` to the repo without secrets: the password is only a reference.
+The password is only a reference to the secret, so `config.json` holds no secrets, but it does hold your hostnames and database names: keep it out of the repo and update `config.json.example` instead when the settings change.
 
 ```sql
 PUT 'file:///<repo>/openflow/config.json' 'snow://openflow_connector/<SF_DB>.OPENFLOW.BENCHMARK_PG/versions/live/'
@@ -380,7 +382,7 @@ Starting the connector snapshots `pgbench_accounts` into the destination table, 
 
 1. `VACUUM FULL` and warm the cache, as for the other tools.
 2. Stop, terminate and drop the connector. Drop its destination and journal tables in `<OF_DB>.PUBLIC` and its replication slot. Dropping a connector keeps both. `TERMINATE` takes about 2.5 minutes, and `DROP` is refused until the status is `TERMINATED`; `SYSTEM$WAIT_FOR_STABLE_OPENFLOW_CONNECTORS` returns before that.
-3. Recreate the connector from `openflow/config.json` and the driver (Setup (Connector) steps 1 and 2), and start it. The clock starts with `START`.
+3. Recreate the connector from `openflow/config.json` and the driver (Setup (Connector) steps 1 and 2), and start it. The clock starts with `START`. `bench.sh` needs the downloaded `openflow/config.json` for this; it fills in any placeholders left from `config.json.example`.
 4. Poll until the destination table has 100M rows:
    ```sql
     SELECT COUNT(*), MAX(METADATA$ROW_LAST_COMMIT_TIME) FROM <destination table>;
@@ -412,7 +414,7 @@ The connector keeps running between runs, on the same slot, journal and destinat
 
 ### 3. Generate load and measure
 
-The same as for the other tools: `bench.sh cdc` runs pgbench (`custom_tpcb.sql`, 50 clients, 8 threads, 600 s) 3 times, each followed by catch-up and measurement. pgbench writes `CURRENT_TIMESTAMP::text` into `filler`, and latency is that against `METADATA$ROW_LAST_COMMIT_TIME`, as in the top-level README's Results.
+The same as for the other tools: `bench.sh cdc` runs pgbench (`custom_tpcb.sql`, 50 clients, 8 threads, 600 s) 3 times, each followed by catch-up and measurement. pgbench writes `CURRENT_TIMESTAMP::text` into `filler`, and latency is that against `METADATA$ROW_LAST_COMMIT_TIME`, as in the [DMS benchmark's Results](../dms/README.md#results).
 
 Catch-up is reached when:
 
