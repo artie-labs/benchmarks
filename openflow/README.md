@@ -40,7 +40,7 @@ Run `2026-11-25-openflow`, on 2026-11-25, with Openflow on its own. All times ar
 - **Snapshot (100M rows):** 1,331 s (22.2 min) on average, against Debezium's 785 s and Artie's 326 s. The connector reads one 100,000-row page at a time.
 - **CDC history:** 13.8 s average latency (p99 about 21 s), about twice Debezium's 6.0 s and Artie's 7–8 s. Every change landed exactly once.
 - **CDC replication:** 54.0 s average, against 30–38 s for Debezium and Artie. Its merges take 7–9 s each, against 3 s for Debezium's merge task.
-- **Cost:** about 2.2 warehouse credits per CDC run for the merges, plus the runtime and control pools (about 0.4 credits an hour whenever the deployment exists) and 0.02 of Snowpipe Streaming. First pass only; see Snowflake cost below.
+- **Cost:** about 2.75–2.9 credits per CDC run (settled), against 2.0 for Debezium and 2.5 for Artie: about 2.2 for the merges, 0.02 of Snowpipe Streaming, and 0.5–0.7 for the runtime and control pools, which bill every hour the deployment exists.
 
 ### Snapshot (100M rows)
 
@@ -74,16 +74,18 @@ For comparison, Debezium took 785 s on average and Artie 326 s, so Openflow was 
 
 ### Snowflake cost
 
-First pass, read at 15:20, before teardown; hours from 12:00 on may still change, and the 15:00 compute-pool rows hadn't arrived. A second pass after 19:15 will replace these.
+Settled hourly metering from `ACCOUNT_USAGE`, read at 18:59 (every hour from 10:00 to 15:00 settled). Each CDC run had its own clock hour.
 
-| Part                                        | Per CDC run                | Notes                                         |
-| ------------------------------------------- | -------------------------- | --------------------------------------------- |
-| Merges on BENCHMARKWH                       | 2.19–2.20 credits          | 11–13 merges, each waking the Large warehouse |
-| Snowpipe Streaming into the journal         | 0.019 credits              | About 5.4 GB per run                          |
-| Runtime pool (`OPENFLOW_COMPUTE_SNOWFLAKE`) | 0.30–0.53 credits per hour | Runs whenever the runtime exists, busy or not |
-| Control pool                                | 0.08–0.14 credits per hour | Runs whenever the deployment exists           |
+| Run          | Warehouse (merges) | Journal Snowpipe Streaming | Runtime pool | Control pool | **Total** |
+| ------------ | ------------------ | -------------------------- | ------------ | ------------ | --------- |
+| 1 (13:00)    | 2.189              | 0.019                      | 0.533        | 0.143        | **2.88**  |
+| 2 (14:00)    | 2.197              | 0.019                      | 0.417        | 0.112        | **2.75**  |
+| 3 (15:00)    | 2.191              | 0.019                      | 0.255        | 0.072        | **2.54**  |
 
-Per 100M-row snapshot: about 0.095–0.13 credits of Snowpipe Streaming (27.7 GB) and no warehouse, plus the pools for its 20–27 minutes. Debezium's snapshot cost about 0.21 credits of Snowpipe Streaming.
+- **About 2.75–2.9 credits per CDC run over a full hour.** Run 3 is lower only because teardown stopped the runtime at 15:26 and the deployment at 15:38. For comparison, Debezium cost 2.0 and Artie 2.5–2.56 per run.
+- **The merges cost about 2.2 per run**, 11–13 of them, each waking the Large warehouse. Snowpipe Streaming into the journal is 0.019 (about 5.4 GB).
+- **The pools bill whenever the runtime and deployment exist,** busy or not, under `SERVICE_TYPE = 'OPENFLOW_COMPUTE_SNOWFLAKE'`: 0.39–0.68 credits an hour across the full hours measured (runtime 0.30–0.53, control 0.08–0.14). Left running all day, that's roughly 9–16 credits before any merges.
+- **Per 100M-row snapshot:** about 0.095 credits of Snowpipe Streaming (27.7 GB) and no warehouse, plus the pools for its 20–27 minutes (about 0.2–0.3), so about 0.3–0.4 in all. Debezium's snapshot cost about 0.21 credits of Snowpipe Streaming; Artie's about 1.1–1.3 on its warehouse.
 
 ### CDC smoke test
 
