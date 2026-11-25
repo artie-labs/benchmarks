@@ -5,6 +5,8 @@
 - [Debezium + Kafka Connect into Snowflake](kafka-connect/README.md): the same workload through Debezium, Kafka and the Snowflake connector.
 - [Snowflake Openflow into Snowflake](openflow/README.md): the same workload through the Openflow Connector for PostgreSQL.
 
+[`run/README.md`](run/README.md) is the runbook for `run/bench.sh`, which runs the Postgres-to-Snowflake benchmarks for any of the tools above.
+
 The Postgres-to-Snowflake benchmarks share the infrastructure below: an RDS Postgres instance in a VPC with `pgbench_accounts` loaded (100M rows), plus the DMS resources, all from [`aws/dms/tf`](aws/dms/tf).
 
 ## Prerequisites

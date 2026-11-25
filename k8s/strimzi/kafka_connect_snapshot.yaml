@@ -32,8 +32,8 @@ spec:
   configStorageTopic: connect-cluster-configs
   offsetStorageTopic: connect-cluster-offsets
   statusStorageTopic: connect-cluster-status
-  # Snapshot sizing, the same as the Artie snapshot pod: 4 CPUs requested, no CPU limit. bench.sh switches to
-  # 1 CPU, 3Gi and a 1536m heap for CDC runs (DBZ_CDC_* in run/.env).
+  # Snapshot sizing: 4 CPUs requested, no CPU limit. bench.sh switches to 1 CPU, 3Gi and a 1536m heap for CDC runs
+  # (DBZ_CDC_* in run/.env).
   resources:
     requests:
       cpu: "4"
@@ -51,8 +51,8 @@ spec:
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     # No schema in each message. With schemas on, every message would carry its full schema: roughly 4x the bytes,
-    # which for the 100M-row snapshot is more than the brokers' 100Gi disks. The Snowflake connector infers column
-    # types from the values instead (NUMBER for aid, bid and abalance, VARCHAR for filler).
+    # which for the 100M-row snapshot is more than the brokers' 100Gi disks. Without schemas the Snowflake connector
+    # would guess column types from the first row, so bench.sh creates its tables first (run/sql/setup_debezium.sql).
     value.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter.schemas.enable: false
     offset.flush.interval.ms: 10000

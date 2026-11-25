@@ -9,7 +9,7 @@ strimzi_operator:
 		 --install \
 		 --create-namespace \
 		 --namespace strimzi-operator \
-		 --version 0.47.0
+		 --version 1.3.1
 
 .PHONY: kafka
 kafka:
@@ -30,4 +30,9 @@ kafka_connector_secrets:
 
 .PHONY: kafka_connect
 kafka_connect:
-	kubectl --context $(KUBE_CONTEXT) apply -f strimzi/kafka_connect.yaml
+	kubectl --context $(KUBE_CONTEXT) apply -f strimzi/kafka_connect_snapshot.yaml
+
+# Starts CDC by hand. run/bench.sh creates its own connectors, so don't use this during a benchmark run.
+.PHONY: kafka_connect_cdc
+kafka_connect_cdc:
+	kubectl --context $(KUBE_CONTEXT) apply -f strimzi/kafka_connect_cdc.yaml

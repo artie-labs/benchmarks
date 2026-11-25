@@ -35,8 +35,8 @@ spec:
     table.include.list: public.pgbench_accounts
     plugin.name: pgoutput
     slot.name: debezium
-    # bench.sh pg_init creates dbz_publication FOR TABLE public.pgbench_accounts (Artie uses it too). Fail rather than
-    # create a FOR ALL TABLES publication if it's missing.
+    # bench.sh pg_init creates dbz_publication FOR TABLE public.pgbench_accounts (other tools may share it). Fail
+    # rather than create a FOR ALL TABLES publication if it's missing.
     publication.name: dbz_publication
     publication.autocreate.mode: disabled
     # Stream from the slot's creation point. The default (initial) would first snapshot all 100M rows before
@@ -72,8 +72,7 @@ spec:
     enabled: true
   config:
     topics: dbserver1.public.pgbench_accounts
-    # Created by the connector on first write. run/sql/setup.sql turns on ROW_TIMESTAMP_DEFAULT for the schema first,
-    # so the table gets METADATA$ROW_LAST_COMMIT_TIME like the other tools' tables.
+    # DEBEZIUM_HISTORY is created by bench.sh sf_setup; see run/sql/setup_debezium.sql for why the connector mustn't.
     snowflake.topic2table.map: "dbserver1.public.pgbench_accounts:DEBEZIUM_HISTORY"
     snowflake.url.name: "${file:/mnt/snowflake-config/snowflake.properties:account}.${file:/mnt/snowflake-config/snowflake.properties:region}.snowflakecomputing.com:443"
     snowflake.user.name: "${file:/mnt/snowflake-config/snowflake.properties:username}"
